@@ -1,9 +1,13 @@
 # -*- coding: utf-8 -*-
 # phapl: Phase Plane helper
 
+# Copyright © 2018 Aleksey Cherepanov <lyosha@openwall.com>
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted.
+
 import re
 import string
-import json
+# import json
 
 import sympy
 
@@ -16,6 +20,7 @@ e, u, v, x, y, l = sympy.symbols('e u v x y l')
 # arctg = sympy.atan
 
 def from_string(s, replace_e = True):
+    # %% support s to be unicode string ?
     if type(s) == str:
         s = re.sub(r'\barctg\b', 'atan', s)
         if replace_e:
@@ -24,8 +29,13 @@ def from_string(s, replace_e = True):
 
 # print tasks
 
+def equal(f1, f2):
+    # bool(sympy.Eq(S('-6**(3/8)*(-sqrt(-sqrt(2) + 2) + sqrt(-2 - sqrt(2)))/2 - (6**(1/8)*sqrt(-sqrt(2) + 2)/2 + 2**(5/8)*3**(1/8)*sqrt(-sqrt(2) + 2)/2 - 2**(5/8)*3**(1/8)*sqrt(-2 - sqrt(2))/2 + 6**(1/8)*sqrt(-2 - sqrt(2))/2)**3'), 0))
+    # ^ this fails without simplify()
+    return bool(sympy.Eq(sympy.simplify(f1 - f2), 0))
+
 def solve_system(s_dotx, s_doty):
-    # ** due to bug(?) in sympy, we don't replace e for E before solving
+    # ** due to bug(?) in sympy, we don't replace e for E before solving; example?
     dotx = from_string(s_dotx, False)
     doty = from_string(s_doty, False)
     r = sympy.solve([dotx, doty], [x, y], check = False)
@@ -39,12 +49,30 @@ def solve_system(s_dotx, s_doty):
         rx = rx.subs(e, sympy.E)
         ry = ry.subs(e, sympy.E)
         s = { x : rx, y : ry }
-        # assert sympy.Eq(dotx.subs(s), 0) == True
-        # assert sympy.Eq(doty.subs(s), 0) == True
+        assert equal(dotx.subs(s), 0)
+        assert equal(doty.subs(s), 0)
         if rx.is_real and ry.is_real:
             real.append([rx, ry])
         else:
             img.append([rx, ry])
+    # fix for periodic solution in x' = y, y' = sin(x + y) (set 17, task 23)
+    # %% make periodic in generic; maybe with 2*pi*n as in https://stackoverflow.com/questions/21252482/how-to-solve-sinz-2-in-sympy
+    add_to_real = []
+    pi = sympy.pi
+    for rx, ry in [ (-pi, 0), (2*pi, 0) ]:
+        s = { x : rx, y : ry }
+        if not equal(doty.subs(s), 0):
+            continue
+        if not equal(dotx.subs(s), 0):
+            continue
+        # ok, (rx, ry) is a special point; is not it duplicate?
+        for tx, ty in real:
+            if equal(tx, rx) and equal(ty, ry):
+                break
+        else:
+            # no breaks; that's a new point
+            add_to_real.append([rx, ry])
+    real += add_to_real
     return real, img
 
 # real, img = solve_system(*tasks[1])
@@ -56,8 +84,8 @@ def solve_system(s_dotx, s_doty):
 def linearize(f, *vs):
     assert len(vs) == 2
     # print f, vs
-    # # %% \u0438\u0437-\u0437\u0430 \u0441\u043a\u043e\u0431\u043e\u043a \u043c\u043e\u0436\u0435\u0442 \u043d\u0435 \u0441\u0440\u0430\u0431\u043e\u0442\u0430\u0442\u044c \u0437\u0430\u043c\u0435\u043d\u0430 subs(vs[0] * vs[1], 0); \u043f\u0440\u0438\u043c\u0435\u0440 ((u + v - 1)**2 - 1)
-    # # %% \u043c\u043e\u0436\u0435\u0442 \u0431\u044b\u0442\u044c \u043d\u0443\u0436\u0435\u043d expand \u0432 \u043a\u043e\u043d\u0446\u0435 from_string
+    # # %% из-за скобок может не сработать замена subs(vs[0] * vs[1], 0); пример ((u + v - 1)**2 - 1)
+    # # %% может быть нужен expand в конце from_string
     # r = from_string(f).series(vs[0], n = 2).removeO().series(vs[1], n = 2).removeO().subs(vs[0] * vs[1], 0)
     # c = r.subs({ vs[0] : 0, vs[1] : 0 })
     # nc = r - c
@@ -76,10 +104,10 @@ def get_abcd(dotx, doty, rx, ry):
     # tx, ty = [sympy.simplify(f) for f in tx, ty]
 
     c, linear_x = linearize(tx, u, v)
-    # %% \u0447\u0442\u043e \u0442\u0443\u0442 \u0434\u0435\u043b\u0430\u0442\u044c \u043f\u0440\u0438 \u043e\u0442\u043a\u043b\u043e\u043d\u0435\u043d\u0438\u044f\u0445?
-    assert c == 0
+    # %% что тут делать при отклонениях?
+    assert equal(c, 0)
     c, linear_y = linearize(ty, u, v)
-    assert c == 0
+    assert equal(c, 0)
 
     # print linear_x, '||', linear_y
 
@@ -106,36 +134,38 @@ def characteristic_equation(a, b, c, d):
 
 # ls = characteristic_equation(*abcd)
 
-# \u0423\u0441\u0442\u043e\u0439\u0447\u0438\u0432\u043e\u0441\u0442\u044c:
-#  \u041e\u0431\u043e\u0437\u043d\u0430\u0447\u0435\u043d\u0438\u044f: l1 - \lambda_1, l2 - \lambda_2,
-#    \u041d - \u041d\u0435\u0443\u0441\u0442\u043e\u0439\u0447\u0438\u0432\u043e, \u0423 - \u0410\u0441\u0438\u043c\u043f\u0442\u043e\u0442\u0438\u0447\u0435\u0441\u043a\u0438 \u0443\u0441\u0442\u043e\u0439\u0447\u0438\u0432\u043e, \u041b - \u0423\u0441\u0442\u043e\u0439\u0447\u0438\u0432\u043e \u043f\u043e \u041b\u044f\u043f\u0443\u043d\u043e\u0432\u0443
-# # |\u0423\u0441\u0442\u043e\u0439\u0447\u0438\u0432\u043e\u0441\u0442\u044c|                 \u0422\u0438\u043f| \u041f\u0440\u0438\u0437\u043d\u0430\u043a\u0438
-# 1  \u041d               \u041d\u0435\u0443\u0441\u0442\u043e\u0439\u0447\u0438\u0432\u044b\u0439 \u0443\u0437\u0435\u043b: l1 != l2, l1 > 0, l2 > 0
-# 2  \u0423                 \u0423\u0441\u0442\u043e\u0439\u0447\u0438\u0432\u044b\u0439 \u0443\u0437\u0435\u043b: l1 != l2, l1 < 0, l2 < 0
-# 3  \u041d                           \u0421\u0435\u0434\u043b\u043e: l1 != l2, l1 > 0, l2 < 0 (\u0438\u043b\u0438 l1 < 0, l2 > 0)
-# 4  \u041b                           \u0426\u0435\u043d\u0442\u0440: Re(l1) = Re(l2), Re(l1) = 0,
+# Устойчивость:
+#  Обозначения: l1 - \lambda_1, l2 - \lambda_2,
+#    Н - Неустойчиво, У - Асимптотически устойчиво, Л - Устойчиво по Ляпунову
+# # |Устойчивость|                 Тип| Признаки
+# 1  Н               Неустойчивый узел: l1 != l2, l1 > 0, l2 > 0
+# 2  У                 Устойчивый узел: l1 != l2, l1 < 0, l2 < 0
+# 3  Н                           Седло: l1 != l2, l1 > 0, l2 < 0 (или l1 < 0, l2 > 0)
+# 4  Л                           Центр: Re(l1) = Re(l2), Re(l1) = 0,
 #                                         Im(l1) = -Im(l2), Im(l1) != 0
-# 5  \u041d              \u041d\u0435\u0443\u0441\u0442\u043e\u0439\u0447\u0438\u0432\u044b\u0439 \u0444\u043e\u043a\u0443\u0441: Re(l1) = Re(l2), Re(l1) > 0,
+# 5  Н              Неустойчивый фокус: Re(l1) = Re(l2), Re(l1) > 0,
 #                                         Im(l1) = -Im(l2), Im(l1) != 0
-# 6  \u0423                \u0423\u0441\u0442\u043e\u0439\u0447\u0438\u0432\u044b\u0439 \u0444\u043e\u043a\u0443\u0441: Re(l1) = Re(l2), Re(l1) < 0,
+# 6  У                Устойчивый фокус: Re(l1) = Re(l2), Re(l1) < 0,
 #                                         Im(l1) = -Im(l2), Im(l1) != 0
-# 7  \u041d   \u041d\u0435\u0443\u0441\u0442\u043e\u0439\u0447\u0438\u0432\u044b\u0439 \u0432\u044b\u0440\u043e\u0436\u0434\u0435\u043d\u043d\u044b\u0439 \u0443\u0437\u0435\u043b: l1 = l2, l1 > 0, \u0438\u0441\u043a\u043b\u044e\u0447\u0430\u044f 7\u0430
-# 7a \u041d \u041d\u0435\u0443\u0441\u0442\u043e\u0439\u0447\u0438\u0432\u044b\u0439 \u0434\u0438\u043a\u0440\u0438\u0442\u0438\u0447\u0435\u0441\u043a\u0438\u0439 \u0443\u0437\u0435\u043b: l1 = l2, l1 > 0, x' = ax, y' = ay, a > 0
-# 8  \u0423     \u0423\u0441\u0442\u043e\u0439\u0447\u0438\u0432\u044b\u0439 \u0432\u044b\u0440\u043e\u0436\u0434\u0435\u043d\u043d\u044b\u0439 \u0443\u0437\u0435\u043b: l1 = l2, l1 < 0, \u0438\u0441\u043a\u043b\u044e\u0447\u0430\u044f 8\u0430
-# 8a \u0423   \u0423\u0441\u0442\u043e\u0439\u0447\u0438\u0432\u044b\u0439 \u0434\u0438\u043a\u0440\u0438\u0442\u0438\u0447\u0435\u0441\u043a\u0438\u0439 \u0443\u0437\u0435\u043b: l1 = l2, l1 < 0, x' = ax, y' = ay, a < 0
+# 7  Н   Неустойчивый вырожденный узел: l1 = l2, l1 > 0, исключая 7а
+# 7a Н Неустойчивый дикритический узел: l1 = l2, l1 > 0, x' = ax, y' = ay, a > 0
+# 8  У     Устойчивый вырожденный узел: l1 = l2, l1 < 0, исключая 8а
+# 8a У   Устойчивый дикритический узел: l1 = l2, l1 < 0, x' = ax, y' = ay, a < 0
 
 def stability(l1, l2, a, b, c, d):
+    (l1, l2, a, b, c, d) = map(sympy.simplify, (l1, l2, a, b, c, d))
     r1, i1 = l1.as_real_imag()
     r2, i2 = l2.as_real_imag()
+    (r1, i1, r2, i2) = map(sympy.simplify, (r1, i1, r2, i2))
     if i1 == 0 and i2 == 0:
-        if r1 == r2:
+        if sympy.simplify(r1 - r2) == 0:
             if l1 > 0:
-                if b == 0 and c == 0 and a == d and a > 0:
+                if b == 0 and c == 0 and equal(a, d) and a > 0:
                     return '7a'
                 else:
                     return '7'
             elif l1 < 0:
-                if b == 0 and c == 0 and a == d and a < 0:
+                if b == 0 and c == 0 and equal(a, d) and a < 0:
                     return '8a'
                 else:
                     return '8'
@@ -151,7 +181,7 @@ def stability(l1, l2, a, b, c, d):
             else:
                 return 'err3'
     else:
-        if r1 == r2 and i1 == -i2:
+        if equal(r1, r2) and equal(i1, -i2):
             if r1 == 0:
                 return '4'
             elif r1 > 0:
@@ -166,10 +196,10 @@ def stability(l1, l2, a, b, c, d):
 # s = stability(*(ls + abcd))
 
 stability_names = [
-    u"\u041e\u0441\u043e\u0431\u0430\u044f \u0442\u043e\u0447\u043a\u0430 \u043d\u0435 \u0434\u043e\u043f\u0443\u0441\u043a\u0430\u0435\u0442 \u043b\u0438\u043d\u0435\u0430\u0440\u0438\u0437\u0430\u0446\u0438\u044e",
-    u"\u041d\u0435\u0443\u0441\u0442\u043e\u0439\u0447\u0438\u0432\u043e",
-    u"\u0410\u0441\u0438\u043c\u043f\u0442\u043e\u0442\u0438\u0447\u0435\u0441\u043a\u0438 \u0443\u0441\u0442\u043e\u0439\u0447\u0438\u0432\u043e",
-    u"\u0423\u0441\u0442\u043e\u0439\u0447\u0438\u0432\u043e \u043f\u043e \u041b\u044f\u043f\u0443\u043d\u043e\u0432\u0443"
+    u"Особая точка не допускает линеаризацию",
+    u"Неустойчиво",
+    u"Асимптотически устойчиво",
+    u"Устойчиво по Ляпунову"
 ]
 
 error = 0
@@ -179,21 +209,21 @@ lyapunov = 3
 
 point_type_names = {
 
-    "1"  : [ unstable, u"\u041d\u0435\u0443\u0441\u0442\u043e\u0439\u0447\u0438\u0432\u044b\u0439 \u0443\u0437\u0435\u043b" ],
-    "2"  : [   stable, u"\u0423\u0441\u0442\u043e\u0439\u0447\u0438\u0432\u044b\u0439 \u0443\u0437\u0435\u043b" ],
-    "3"  : [ unstable, u"\u0421\u0435\u0434\u043b\u043e" ],
-    "4"  : [ lyapunov, u"\u0426\u0435\u043d\u0442\u0440" ],
-    "5"  : [ unstable, u"\u041d\u0435\u0443\u0441\u0442\u043e\u0439\u0447\u0438\u0432\u044b\u0439 \u0444\u043e\u043a\u0443\u0441" ],
-    "6"  : [   stable, u"\u0423\u0441\u0442\u043e\u0439\u0447\u0438\u0432\u044b\u0439 \u0444\u043e\u043a\u0443\u0441" ],
-    "7"  : [ unstable, u"\u041d\u0435\u0443\u0441\u0442\u043e\u0439\u0447\u0438\u0432\u044b\u0439 \u0432\u044b\u0440\u043e\u0436\u0434\u0435\u043d\u043d\u044b\u0439 \u0443\u0437\u0435\u043b" ],
-    "7a" : [ unstable, u"\u041d\u0435\u0443\u0441\u0442\u043e\u0439\u0447\u0438\u0432\u044b\u0439 \u0434\u0438\u043a\u0440\u0438\u0442\u0438\u0447\u0435\u0441\u043a\u0438\u0439 \u0443\u0437\u0435\u043b" ],
-    "8"  : [   stable, u"\u0423\u0441\u0442\u043e\u0439\u0447\u0438\u0432\u044b\u0439 \u0432\u044b\u0440\u043e\u0436\u0434\u0435\u043d\u043d\u044b\u0439 \u0443\u0437\u0435\u043b" ],
-    "8a" : [   stable, u"\u0423\u0441\u0442\u043e\u0439\u0447\u0438\u0432\u044b\u0439 \u0434\u0438\u043a\u0440\u0438\u0442\u0438\u0447\u0435\u0441\u043a\u0438\u0439 \u0443\u0437\u0435\u043b" ],
+    "1"  : [ unstable, u"Неустойчивый узел" ],
+    "2"  : [   stable, u"Устойчивый узел" ],
+    "3"  : [ unstable, u"Седло" ],
+    "4"  : [ lyapunov, u"Центр" ],
+    "5"  : [ unstable, u"Неустойчивый фокус" ],
+    "6"  : [   stable, u"Устойчивый фокус" ],
+    "7"  : [ unstable, u"Неустойчивый вырожденный узел" ],
+    "7a" : [ unstable, u"Неустойчивый дикритический узел" ],
+    "8"  : [   stable, u"Устойчивый вырожденный узел" ],
+    "8a" : [   stable, u"Устойчивый дикритический узел" ],
 
-    "err1" : [ error, u"\u041e\u0441\u043e\u0431\u0430\u044f \u0442\u043e\u0447\u043a\u0430 \u043d\u0435 \u0434\u043e\u043f\u0443\u0441\u043a\u0430\u0435\u0442 \u043b\u0438\u043d\u0435\u0430\u0440\u0438\u0437\u0430\u0446\u0438\u044e (1)" ],
-    "err2" : [ error, u"\u041e\u0441\u043e\u0431\u0430\u044f \u0442\u043e\u0447\u043a\u0430 \u043d\u0435 \u0434\u043e\u043f\u0443\u0441\u043a\u0430\u0435\u0442 \u043b\u0438\u043d\u0435\u0430\u0440\u0438\u0437\u0430\u0446\u0438\u044e (2)" ],
-    "err3" : [ error, u"\u041e\u0441\u043e\u0431\u0430\u044f \u0442\u043e\u0447\u043a\u0430 \u043d\u0435 \u0434\u043e\u043f\u0443\u0441\u043a\u0430\u0435\u0442 \u043b\u0438\u043d\u0435\u0430\u0440\u0438\u0437\u0430\u0446\u0438\u044e (3)" ],
-    "err4" : [ error, u"\u041e\u0441\u043e\u0431\u0430\u044f \u0442\u043e\u0447\u043a\u0430 \u043d\u0435 \u0434\u043e\u043f\u0443\u0441\u043a\u0430\u0435\u0442 \u043b\u0438\u043d\u0435\u0430\u0440\u0438\u0437\u0430\u0446\u0438\u044e (4)" ]
+    "err1" : [ error, u"Особая точка не допускает линеаризацию (1)" ],
+    "err2" : [ error, u"Особая точка не допускает линеаризацию (2)" ],
+    "err3" : [ error, u"Особая точка не допускает линеаризацию (3)" ],
+    "err4" : [ error, u"Особая точка не допускает линеаризацию (4)" ]
 }
 
 # print point_type_names[s][1]
@@ -227,16 +257,17 @@ def get_points(dotx, doty):
         s = point_type_names[ss]
         pr['is_linear'] = is_linear
         pr['l1'], pr['l2'] = ls
+        # print ls
         pr['stability'] = stability_names[s[0]]
         pr['type'] = s[1]
         pr['ab'] = abcd[0] * u + abcd[1] * v
         pr['cd'] = abcd[2] * u + abcd[3] * v
-        if pr['type'] in { u"\u041d\u0435\u0443\u0441\u0442\u043e\u0439\u0447\u0438\u0432\u044b\u0439 \u0443\u0437\u0435\u043b", u"\u0423\u0441\u0442\u043e\u0439\u0447\u0438\u0432\u044b\u0439 \u0443\u0437\u0435\u043b", u"\u0421\u0435\u0434\u043b\u043e",
-                           u"\u041d\u0435\u0443\u0441\u0442\u043e\u0439\u0447\u0438\u0432\u044b\u0439 \u0432\u044b\u0440\u043e\u0436\u0434\u0435\u043d\u043d\u044b\u0439 \u0443\u0437\u0435\u043b",
-                           u"\u0423\u0441\u0442\u043e\u0439\u0447\u0438\u0432\u044b\u0439 \u0432\u044b\u0440\u043e\u0436\u0434\u0435\u043d\u043d\u044b\u0439 \u0443\u0437\u0435\u043b"
+        if pr['type'] in { u"Неустойчивый узел", u"Устойчивый узел", u"Седло",
+                           u"Неустойчивый вырожденный узел",
+                           u"Устойчивый вырожденный узел"
                            }:
-            # %% \u043c\u043e\u0436\u043d\u043e \u0431\u044b\u043b\u043e \u0431\u044b \u0432\u044b\u0431\u0440\u0430\u0442\u044c \u043f\u043e\u0440\u044f\u0434\u043e\u043a \u0442\u0430\u043a, \u0447\u0442\u043e\u0431\u044b \u0441\u043e\u0431\u0441\u0442\u0432\u0435\u043d\u043d\u044b\u0435
-            #  % \u0432\u0435\u043a\u0442\u043e\u0440\u044b \u0441\u043e\u043e\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u043e\u0432\u0430\u043b\u0438 \u0441\u043e\u0431\u0441\u0442\u0432\u0435\u043d\u043d\u044b\u043c \u0437\u043d\u0430\u0447\u0435\u043d\u0438\u044f\u043c
+            # %% можно было бы выбрать порядок так, чтобы собственные
+            #  % векторы соответствовали собственным значениям
             ev1, ev2 = eigenvectors(*abcd)
             pr['ev1'] = ev1
             if ev2 != None:
@@ -246,7 +277,7 @@ def get_points(dotx, doty):
 
 # k_img, ps = get_points(*tasks[0])
 
-# # \u0412\u044b\u0432\u043e\u0434 \u0434\u0430\u043d\u043d\u044b\u0445 \u043f\u043e \u0437\u0430\u0434\u0430\u0447\u0430\u043c
+# # Вывод данных по задачам
 # for t in tasks:
 #     k_img, ps = get_points(*t)
 #     print '"{0}", "{1}"'.format(*t)
@@ -278,8 +309,6 @@ def latexify_point(d):
 def task_to_json(dotx, doty):
     # %% rename; it is not really _to_json, just returns dictionary
     k_img, ps = get_points(dotx, doty)
-    print type(dotx)
-    print from_string(dotx)
     # dot_x = sympy.simplify(dotx)
     # dot_y = sympy.simplify(doty)
     for p in ps:
@@ -343,7 +372,7 @@ function $name(
 js_template = string.Template(js_template)
 
 js_common = ur'''
-function phapl_setup_canvases()
+function phapl_setup_canvases(phapl_canvases, phapl_all_points)
 {
     var canvas_properties = {};
     var all_points = phapl_all_points;
@@ -553,12 +582,12 @@ function phapl_setup_canvases()
             ctx.stroke();
         };
         for (i = Math.floor(min_x) - 1; i < Math.floor(max_x) + 1; i += 1.0) {
-            // %% \u0441\u0442\u043e\u0438\u0442 \u043f\u0440\u043e\u0432\u043e\u0434\u0438\u0442\u044c \u043e\u0441\u0438 \u043e\u0442\u0434\u0435\u043b\u044c\u043d\u043e
+            // %% стоит проводить оси отдельно
             ctx.strokeStyle = (i == 0.0 ? 'violet' : 'lightgrey');
             line(ctx, i, invert(min_y - 1), i, invert(max_y + 1));
         }
         for (i = Math.floor(min_y) - 1; i < Math.floor(max_y) + 1; i += 1.0) {
-            // %% \u0441\u0442\u043e\u0438\u0442 \u043f\u0440\u043e\u0432\u043e\u0434\u0438\u0442\u044c \u043e\u0441\u0438 \u043e\u0442\u0434\u0435\u043b\u044c\u043d\u043e
+            // %% стоит проводить оси отдельно
             ctx.strokeStyle = (i == 0.0 ? 'violet' : 'lightgrey');
             line(ctx, min_x - 1, invert(i), max_x + 1, invert(i));
         }
@@ -691,18 +720,18 @@ function phapl_setup_canvases()
 def solution_word(i, b):
     # %% remove b
     if i == 1 or (i >= 20 and i % 10 == 1):
-        r = u'\u043e\u0435 \u0440\u0435\u0448\u0435\u043d\u0438\u0435'
+        r = u'ое решение'
         if b:
-            r += u' (\u043f\u0440\u043e\u0438\u0433\u043d\u043e\u0440\u0438\u0440\u043e\u0432\u0430\u043d\u043e)'
+            r += u' (проигнорировано)'
         return r
     if 2 <= i <= 4 or (i >= 20 and 2 <= i % 10 <= 4):
-        r = u'\u044b\u0445 \u0440\u0435\u0448\u0435\u043d\u0438\u044f'
+        r = u'ых решения'
     elif i == 0 or i >= 5:
-        r = u'\u044b\u0445 \u0440\u0435\u0448\u0435\u043d\u0438\u0439'
+        r = u'ых решений'
     else:
         assert 0, 'not implemented'
     if b:
-        r += u' (\u043f\u0440\u043e\u0438\u0433\u043d\u043e\u0440\u0438\u0440\u043e\u0432\u0430\u043d\u044b)'
+        r += u' (проигнорированы)'
     return r
 
 # # original style with table for special points
@@ -710,24 +739,24 @@ def solution_word(i, b):
 #     d = json.loads(str_args)
 #     s = ''
 #     canvases = []
-#     s += u'<h2>\u0418\u0441\u0441\u043b\u0435\u0434\u0443\u0435\u043c\u0430\u044f \u0441\u0438\u0441\u0442\u0435\u043c\u0430</h2>'
+#     s += u'<h2>Исследуемая система</h2>'
 #     s += (r'<p>$$ \left\{ \begin{aligned}'
 #           + r'\dot{x} &= ' + d['dot_x_tex'] + r' \\'
 #           + r'\dot{y} &= ' + d['dot_y_tex'] + r' \\'
 #           + r'\end{aligned}\right. $$</p>')
-#     s += u'<h2>\u041e\u0441\u043e\u0431\u044b\u0435 \u0442\u043e\u0447\u043a\u0438</h2>'
-#     s += (u'\u041f\u043e\u0438\u0441\u043a \u043e\u0441\u043e\u0431\u044b\u0445 \u0442\u043e\u0447\u0435\u043a \u043d\u0430\u0448\u0451\u043b {} \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0442\u0435\u043b\u044c\u043d{}.'
-#           + u' \u0422\u0430\u043a\u0436\u0435 \u0431\u044b\u043b\u043e \u043d\u0430\u0439\u0434\u0435\u043d\u043e {} \u043a\u043e\u043c\u043f\u043b\u0435\u043a\u0441\u043d{}.').format(
+#     s += u'<h2>Особые точки</h2>'
+#     s += (u'Поиск особых точек нашёл {} действительн{}.'
+#           + u' Также было найдено {} комплексн{}.').format(
 #               d['k_real'], solution_word(d['k_real'], False),
 #               d['k_img'], solution_word(d['k_img'], True))
 #     s += '<table border="1" style="border-collapse: collapse;">'
 #     headers = [
-#         u"\u2116",
-#         u"\u041a\u043e\u043e\u0440\u0434\u0438\u043d\u0430\u0442\u044b",
-#         u"\u041a\u043e\u0440\u043d\u0438<br>\u0445\u0430\u0440\u0430\u043a\u0442\u0435\u0440\u0438\u0441\u0442\u0438\u0447\u0435\u0441\u043a\u043e\u0433\u043e<br>\u0443\u0440\u0430\u0432\u043d\u0435\u043d\u0438\u044f",
-#         u"\u0422\u043e\u0447\u043a\u0430 \u043f\u043e\u043a\u043e\u044f",
-#         u"\u0424\u0430\u0437\u043e\u0432\u044b\u0439 \u043f\u043e\u0440\u0442\u0440\u0435\u0442<br>\u0432 \u043e\u043a\u0440\u0435\u0441\u0442\u043d\u043e\u0441\u0442\u0438 \u0442\u043e\u0447\u043a\u0438",
-#         u"\u0423\u0441\u0442\u043e\u0439\u0447\u0438\u0432\u043e\u0441\u0442\u044c<br>(\u043d\u0435\u0443\u0441\u0442\u043e\u0439\u0447\u0438\u0432\u043e\u0441\u0442\u044c)<br>\u0442\u0440\u0438\u0432\u0438\u0430\u043b\u044c\u043d\u043e\u0433\u043e<br>\u0440\u0435\u0448\u0435\u043d\u0438\u044f"]
+#         u"№",
+#         u"Координаты",
+#         u"Корни<br>характеристического<br>уравнения",
+#         u"Точка покоя",
+#         u"Фазовый портрет<br>в окрестности точки",
+#         u"Устойчивость<br>(неустойчивость)<br>тривиального<br>решения"]
 #     s += '<tr>'
 #     for i in headers:
 #         s += u'<th>{}</th>'.format(i)
@@ -749,7 +778,7 @@ def solution_word(i, b):
 #         s += td(p['stability'])
 #         s += '</tr>'
 #     s += '</table>'
-#     s += u'<h2>\u041e\u0431\u0449\u0438\u0439 \u0444\u0430\u0437\u043e\u0432\u044b\u0439 \u043f\u043e\u0440\u0442\u0440\u0435\u0442</h2>'
+#     s += u'<h2>Общий фазовый портрет</h2>'
 #     s += '<canvas id="canvas_all" width="600" height="600" style="border: 1px solid black;"></canvas>'
 #     if not all_points:
 #         all_points.append([ 0, 0 ])
@@ -772,27 +801,27 @@ def make_html(d):
     s = ''
     canvases = []
     # s += u'<style> body { font-size: 140%; } </style>'
-    s += u'<h2>\u0418\u0441\u0441\u043b\u0435\u0434\u0443\u0435\u043c\u0430\u044f \u0441\u0438\u0441\u0442\u0435\u043c\u0430</h2>'
+    s += u'<h2>Исследуемая система</h2>'
     s += (r'<p>$$ \left\{ \begin{aligned}'
           + r'\dot{x} &= ' + d['dot_x_tex'] + r' \\'
           + r'\dot{y} &= ' + d['dot_y_tex']
           + r' \end{aligned}\right. $$</p>')
-    s += u'<h2>\u041e\u0441\u043e\u0431\u044b\u0435 \u0442\u043e\u0447\u043a\u0438</h2>'
+    s += u'<h2>Особые точки</h2>'
     s += (r'<p>$$ \left\{ \begin{aligned}'
           + d['dot_x_tex'] + r' = 0 \\'
           + d['dot_y_tex'] + r' = 0'
           + r' \end{aligned}\right. $$</p>')
     if d['k_real'] == 0:
-        s += u'\u041d\u0430\u0439\u0434\u0435\u043d\u043e <b>0</b> \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0442\u0435\u043b\u044c\u043d\u044b\u0439 \u0440\u0435\u0448\u0435\u043d\u0438\u0439: \u043e\u0441\u043e\u0431\u044b\u0435 \u0442\u043e\u0447\u043a\u0438 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u044b.'
+        s += u'Найдено <b>0</b> действительный решений: особые точки не найдены.'
     else:
-        s += u'\u041d\u0430\u0439\u0434\u0435\u043d\u043e <b>{}</b> \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0442\u0435\u043b\u044c\u043d{}: \( {} \).'.format(
+        s += u'Найдено <b>{}</b> действительн{}: \( {} \).'.format(
             d['k_real'],
             solution_word(d['k_real'], False),
             ur',\  '.join(ur'\left( {}, {} \right)'.format(
                               p['x_tex'], p['y_tex'])
                           for p in d['points']))
     s += '<br>'
-    s += ur'\u041d\u0430\u0439\u0434\u0435\u043d\u043e \u0438 \u043f\u0440\u043e\u0438\u0433\u043d\u043e\u0440\u0438\u0440\u043e\u0432\u0430\u043d\u043e <b>{}</b> \u043a\u043e\u043c\u043f\u043b\u0435\u043a\u0441\u043d{}.'.format(
+    s += ur'Найдено и проигнорировано <b>{}</b> комплексн{}.'.format(
         d['k_img'], solution_word(d['k_img'], False))
     all_points = []
     hl_funcs = [
@@ -802,34 +831,35 @@ def make_html(d):
     for i, p in enumerate(d['points']):
         s += '<hr>'
         # %% use <li> ?
-        s += u'<b>{}.</b> \u0422\u043e\u0447\u043a\u0430 '.format(i + 1)
+        s += u'<b>{}.</b> Точка '.format(i + 1)
         s += r'\( \left( {}, {} \right) \).'.format(
             p['x_tex'], p['y_tex'])
         s += '<br>'
         if not p['is_linear']:
-            s += u'\u0421\u043e\u043e\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0443\u044e\u0449\u0430\u044f \u043b\u0438\u043d\u0435\u0439\u043d\u0430\u044f \u0441\u0438\u0441\u0442\u0435\u043c\u0430 \u043f\u043e\u0441\u043b\u0435 \u043f\u0435\u0440\u0435\u043d\u043e\u0441\u0430 \u043a\u043e\u043e\u0440\u0434\u0438\u043d\u0430\u0442:'
+            s += u'Соответствующая линейная система после переноса координат:'
             s += (r'<p>$$ \left\{ \begin{aligned}'
+                  # %% use replace & with &amp; for cleaner style
                   + r'\dot{u} &= ' + p['ab_tex'] + r' \\'
                   + r'\dot{v} &= ' + p['cd_tex']
                   + r' \end{aligned}\right. $$</p>')
-        s += u'\u041a\u043e\u0440\u043d\u0438 \u0445\u0430\u0440\u0430\u043a\u0442\u0435\u0440\u0438\u0441\u0442\u0438\u0447\u0435\u0441\u043a\u043e\u0433\u043e \u0443\u0440\u0430\u0432\u043d\u0435\u043d\u0438\u044f:'
+        s += u'Корни характеристического уравнения:'
         s += r'$$ \lambda_1 = {}, \\ \lambda_2 = {}. $$'.format(
             p['l1_tex'], p['l2_tex'])
-        s += u'\u0422\u0438\u043f \u043e\u0441\u043e\u0431\u043e\u0439 \u0442\u043e\u0447\u043a\u0438: '
-        if not p['is_linear'] and p['type'] == u'\u0426\u0435\u043d\u0442\u0440':
-            s += u'<b>' + p['type'] + u'</b> \u0432 \u043b\u0438\u043d\u0435\u0439\u043d\u043e\u0439 \u0441\u0438\u0441\u0442\u0435\u043c\u0435. \u0412 \u043e\u0440\u0438\u0433\u0438\u043d\u0430\u043b\u044c\u043d\u043e\u0439 \u0441\u0438\u0441\u0442\u0435\u043c\u0435 \u0442\u043e\u0447\u043a\u0430 \u2014 \u0446\u0435\u043d\u0442\u0440 \u0438\u043b\u0438 \u0444\u043e\u043a\u0443\u0441. <b>\u0422\u0440\u0435\u0431\u0443\u044e\u0442\u0441\u044f \u0434\u043e\u043f\u043e\u043b\u043d\u0438\u0442\u0435\u043b\u044c\u043d\u044b\u0435 \u0438\u0441\u0441\u043b\u0435\u0434\u043e\u0432\u0430\u043d\u0438\u044f</b>.'
+        s += u'Тип особой точки: '
+        if not p['is_linear'] and p['type'] == u'Центр':
+            s += u'' + p['type'] + u' в линейной системе. В оригинальной системе точка — <b>центр или фокус. Требуются дополнительные исследования</b>.'
             s += '<br>'
-            s += u'\u0423\u0441\u0442\u043e\u0439\u0447\u0438\u0432\u043e\u0441\u0442\u044c: <b>\u0442\u0440\u0435\u0431\u0443\u044e\u0442\u0441\u044f \u0434\u043e\u043f\u043e\u043b\u043d\u0438\u0442\u0435\u043b\u044c\u043d\u044b\u0435 \u0438\u0441\u0441\u043b\u0435\u0434\u043e\u0432\u0430\u043d\u0438\u044f</b>.'
+            s += u'Устойчивость: <b>требуются дополнительные исследования</b>.'
         else:
             s += u'<b>' + p['type'] + u'</b>.'
             s += '<br>'
-            s += u'\u0423\u0441\u0442\u043e\u0439\u0447\u0438\u0432\u043e\u0441\u0442\u044c: '
+            s += u'Устойчивость: '
             s += u'<b>' + p['stability'] + u'</b>.'
         s += '<br>'
         pd = [ p['x'], p['y'] ]
         if 'ev1' in p and 'ev2' in p:
             pd += p['ev1'] + p['ev2']
-            s += u'\u041f\u0430\u0440\u0430 \u0441\u043e\u0431\u0441\u0442\u0432\u0435\u043d\u043d\u044b\u0445 \u0432\u0435\u043a\u0442\u043e\u0440\u043e\u0432: '
+            s += u'Пара собственных векторов: '
             s += (ur'\[ \vec{\xi_1} = \left( \begin{array}{c} '
                   + p['ev1_tex'][0] + ur' \\ ' + p['ev1_tex'][1]
                   + ur' \end{array} \right),\ '
@@ -838,17 +868,17 @@ def make_html(d):
                   + ur' \end{array} \right). \]')
         elif 'ev1' in p:
             pd += p['ev1']
-            s += u'\u0421\u043e\u0431\u0441\u0442\u0432\u0435\u043d\u043d\u044b\u0439 \u0432\u0435\u043a\u0442\u043e\u0440: '
+            s += u'Собственный вектор: '
             s += (ur'\[ \vec{\xi_1} = \left( \begin{array}{c} '
                   + p['ev1_tex'][0] + ur' \\ ' + p['ev1_tex'][1]
                   + ur' \end{array} \right). \]')
         if p['is_linear']:
-            s += u'\u0424\u0430\u0437\u043e\u0432\u044b\u0439 \u043f\u043e\u0440\u0442\u0440\u0435\u0442 \u0432 \u043e\u043a\u0440\u0435\u0441\u0442\u043d\u043e\u0441\u0442\u0438 \u0442\u043e\u0447\u043a\u0438:<br>'
+            s += u'Фазовый портрет в окрестности точки:<br>'
             cid = 'phapl_canvas_only_' + str(i)
             s += '<canvas id="{}" width="300" height="300" style="border: 1px solid black;"></canvas>'.format(cid)
             canvases.append([ cid, hl_funcs[0][0], [ pd ] ])
         else:
-            s += u'\u0424\u0430\u0437\u043e\u0432\u044b\u0435 \u043f\u043e\u0440\u0442\u0440\u0435\u0442\u044b \u043b\u0438\u043d\u0435\u0439\u043d\u043e\u0439 \u0438 \u043e\u0440\u0438\u0433\u0438\u043d\u0430\u043b\u044c\u043d\u043e\u0439 \u0441\u0438\u0441\u0442\u0435\u043c \u0432 \u043e\u043a\u0440\u0435\u0441\u0442\u043d\u043e\u0441\u0442\u0438 \u0442\u043e\u0447\u043a\u0438:<br>'
+            s += u'Фазовые портреты линейной и оригинальной систем в окрестности точки:<br>'
             cid = 'phapl_canvas_linear_' + str(i)
             s += '<canvas id="{}" width="300" height="300" style="border: 1px solid black;"></canvas>'.format(cid)
             hl_funcs_k += 1
@@ -861,13 +891,13 @@ def make_html(d):
             canvases.append([ cid, hl_funcs[0][0], [ pd ] ])
         all_points.append(pd)
     s += '<hr>'
-    s += u'<h2>\u041e\u0431\u0449\u0438\u0439 \u0444\u0430\u0437\u043e\u0432\u044b\u0439 \u043f\u043e\u0440\u0442\u0440\u0435\u0442</h2>'
+    s += u'<h2>Общий фазовый портрет</h2>'
     s += '<canvas id="phapl_canvas_all" width="600" height="600" style="border: 1px solid black;"></canvas>'
     if not all_points:
         all_points.append([ 0, 0 ])
     canvases.append([ 'phapl_canvas_all', hl_funcs[0][0], all_points ])
     # Some padding at the bottom
-    s += '<br><br><br><br><br><br><br><br>'
+    # s += '<br><br><br><br><br><br><br><br>'
     # s += '<script type="text/javascript">'
     js = u''
     js += 'phapl_all_points = ' + str(all_points) + ';'
@@ -876,13 +906,14 @@ def make_html(d):
             name = name,
             dot_x = dx_code,
             dot_y = dy_code)
-    js += js_common
+    # js += js_common
     js += ('phapl_canvases = ['
            + ', '.join(map("['{0[0]}', {0[1]}, {0[2]}]".format, canvases))
            + '];\n')
-    js += 'phapl_setup_canvases();'
+    js += 'phapl_setup_canvases(phapl_canvases, phapl_all_points);'
     # print js
     # s += '</script>'
+    # print len(s), len(js), len(js_common)
     return [ s, js ]
 
 def task_to_html(dotx, doty):
