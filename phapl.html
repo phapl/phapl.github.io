@@ -18,7 +18,7 @@
       });
     </script>
 
-    <script src="lib/lzma.js" type="text/javascript"></script>
+    <script src="lib/lzma-d-min.js" type="text/javascript"></script>
 
     <!-- shim for ES6 `Promise` builtin -->
     <script src="lib/Promise.min.js" type="text/javascript"></script>
@@ -40,7 +40,7 @@
               t.push(l.charCodeAt(i));
           }
           l = t;
-          var lzma = new LZMA('lib/lzma-d-min.js');
+          var lzma = LZMA;
           lzma.decompress(l,
               function (result, error) {
                   // %% handle errors
