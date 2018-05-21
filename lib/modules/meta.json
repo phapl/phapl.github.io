@@ -106,7 +106,9 @@
     ], 
     "Pyrex.Distutils.build_ext.build_ext": [
       "distutils.tests.setuptools_extension", 
-      "distutils.tests.setuptools_build_ext"
+      "distutils.tests.setuptools_build_ext", 
+      "distutils.tests.setuptools_build_ext", 
+      "distutils.tests.setuptools_extension"
     ], 
     "RAnDoM": [
       "test.test_import"
@@ -197,6 +199,7 @@
       "_sqlite3"
     ], 
     "_sysconfigdata.build_time_vars": [
+      "distutils.sysconfig_cpython", 
       "distutils.sysconfig_cpython"
     ], 
     "_syslog_cffi.ffi": [
@@ -268,22 +271,31 @@
       "pyrepl.python_reader"
     ], 
     "dl.RTLD_NOW": [
+      "distutils.tests.setuptools_build_ext", 
       "distutils.tests.setuptools_build_ext"
     ], 
     "docutils": [
+      "distutils.tests.test_register", 
       "distutils.tests.test_register"
     ], 
     "docutils.frontend": [
+      "distutils.command.check", 
       "distutils.command.check"
     ], 
     "docutils.nodes": [
+      "distutils.command.check", 
       "distutils.command.check"
     ], 
     "docutils.parsers.rst.Parser": [
+      "distutils.command.check", 
       "distutils.command.check"
     ], 
     "docutils.utils.Reporter": [
+      "distutils.command.check", 
       "distutils.command.check"
+    ], 
+    "email.message_from_file": [
+      "distutils.dist"
     ], 
     "fastcache": [
       "sympy.core.cache"
@@ -799,6 +811,7 @@
       "logging.handlers"
     ], 
     "xx": [
+      "distutils.tests.test_build_ext", 
       "distutils.tests.test_build_ext"
     ], 
     "xxsubtype": [
@@ -831,7 +844,10 @@
       "test.test_shutil", 
       "test.test_codecs", 
       "test.string_tests", 
-      "zipfile"
+      "zipfile", 
+      "distutils.tests.test_bdist_dumb", 
+      "distutils.tests.test_sdist", 
+      "distutils.tests.test_archive_util"
     ]
   }
 }
