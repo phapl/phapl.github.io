@@ -86,7 +86,7 @@
                       '    import libphapl\n' +
                       '    r = libphapl.task_to_html(str(dot_x), str(dot_y))\n' +
                       'except:\n' +
-                      '    r = u"\\x3cpre\\x3e" + traceback.format_exc() + "\\x3c/pre\\x3e"\n'
+                      '    r = [ u"\\x3cpre\\x3e" + traceback.format_exc() + "\\x3c/pre\\x3e", "" ]\n'
                   );
               }).then(function () {
                   console.log('python part ok');
@@ -108,8 +108,13 @@
           }
           e.style.display = t;
           e = document.getElementById(id + '-header');
-          t = e.innerHTML;
-          e.innerHTML = (t[0] == '-' ? '+' : '-') + t.substr(1);
+          t = e.value.split(': ');
+          if (t[0].match('Показать')) {
+              t = '\u25bc Скрыть задачи: ' + t[1];
+          } else {
+              t = '\u25ba Показать задачи: ' + t[1];
+          }
+          e.value = t;
       }
 
       phapl_colored_td = null;
@@ -122,6 +127,8 @@
           document.getElementById('dot_x').value = dotx;
           document.getElementById('dot_y').value = doty;
           phapl_colored_td = obj;
+          document.getElementById('phapl_div_run').scrollIntoView({ "behaviour" : "smooth" });
+          phapl_do();
       }
 
       function phapl_reset_color() {
@@ -485,9 +492,19 @@ function phapl_setup_canvases(phapl_canvases, phapl_all_points)
   <body>
 
     <div class="container">
-<h2 id="block1-header" onclick="collapse('block1')">+ Выбор задания: Контрольное задание 16 (main.pdf)</h2>
+      <h2>PhaPl</h2>
+      <p>PhaPl - программное обеспечение для автоматического построения и исследования фазовых портретов автономных динамических систем на плоскости. PhaPl работает как сайт или как локальная html-страница, не требующая подключения к сети Интернет.</p>
+      <p><a href="https://github.com/phapl/phapl.github.io/archive/master.zip">Скачать архив для локального использования</a> (~9 Мб для скачивания, ~37 Мб на диске после распаковки).</p>
+      <p>Дата публикации этой версии: 2018-05-21 14:27 +0300.</p>
+      <p>Об ошибках, недостатках и возможностях улучшения можно сообщить через <a href="https://github.com/phapl/phapl.github.io/issues">GitHub</a>.</p>
+    </div>
+    <div class="container">
+      <h2>Выбор задачи</h2>
+      <div>
+<form>
+<input type="button" id="block1-header" onclick="collapse('block1')" value="&#9658; Показать задачи: Контрольное задание 16 (main.pdf)">
 <div id="block1" style="display: none">
-<b>Автор(ы):</b> Copyright © 2010 Асташова И. В., Никишкин В. А.<br><i>Асташова И. В., Никишкин В. А.</i> Практикум по курсу «Дифференциальные уравнения». Учебное пособие. Изд. 3-е, исправленное. М.: Изд. центр ЕАОИ, 2010. 94 с., ил. URL: <a href="http://new.math.msu.su/diffur/main_du_2010.pdf">http://new.math.msu.su/diffur/main_du_2010.pdf</a></br>
+Copyright © 2010 Асташова И. В., Никишкин В. А.<br><i>Асташова И. В., Никишкин В. А.</i> Практикум по курсу «Дифференциальные уравнения». Учебное пособие. Изд. 3-е, исправленное. М.: Изд. центр ЕАОИ, 2010. 94 с., ил. URL: <a href="http://new.math.msu.su/diffur/main_du_2010.pdf">http://new.math.msu.su/diffur/main_du_2010.pdf</a></br>
 <table border="1" style="border-collapse: collapse;">
 <tr>
 <td onclick="phapl_set(this, '3 * x - y', '13 * x - 3 * y')">1. \( \left\{ \begin{aligned}\dot{x} &= 3 x - y \\\dot{y} &= 13 x - 3 y \end{aligned}\right. \)</td>
@@ -540,13 +557,15 @@ function phapl_setup_canvases(phapl_canvases, phapl_all_points)
 <td onclick="phapl_set(this, '2 * x - y', '5 * x - 4 * y')">30. \( \left\{ \begin{aligned}\dot{x} &= 2 x - y \\\dot{y} &= 5 x - 4 y \end{aligned}\right. \)</td>
 </tr>
 </table>
+</form>
 </div>
 </div>
-<div class="container">
-<h2 id="block2-header" onclick="collapse('block2')">+ Выбор задания: Контрольное задание 17 (main.pdf)</h2>
+<div>
+<form>
+<input type="button" id="block2-header" onclick="collapse('block2')" value="&#9658; Показать задачи: Контрольное задание 17 (main.pdf)">
 <div id="block2" style="display: none">
-<b>Автор(ы):</b> Copyright © 2010 Асташова И. В., Никишкин В. А.<br><i>Асташова И. В., Никишкин В. А.</i> Практикум по курсу «Дифференциальные уравнения». Учебное пособие. Изд. 3-е, исправленное. М.: Изд. центр ЕАОИ, 2010. 94 с., ил. URL: <a href="http://new.math.msu.su/diffur/main_du_2010.pdf">http://new.math.msu.su/diffur/main_du_2010.pdf</a></br>
-Комментарии: В 22ом задании добавлены скобки для ln(), без них плохие точки получаются.</br>
+Copyright © 2010 Асташова И. В., Никишкин В. А.<br><i>Асташова И. В., Никишкин В. А.</i> Практикум по курсу «Дифференциальные уравнения». Учебное пособие. Изд. 3-е, исправленное. М.: Изд. центр ЕАОИ, 2010. 94 с., ил. URL: <a href="http://new.math.msu.su/diffur/main_du_2010.pdf">http://new.math.msu.su/diffur/main_du_2010.pdf</a></br>
+<b>Комментарии:</b> В 22ом задании добавлены скобки для ln(), без них плохие точки получаются.</br>
 <table border="1" style="border-collapse: collapse;">
 <tr>
 <td onclick="phapl_set(this, '(x + y)^2 - 1', '- y^2 - x + 1')">1. \( \left\{ \begin{aligned}\dot{x} &= \left(x + y\right)^{2} - 1 \\\dot{y} &= - x - y^{2} + 1 \end{aligned}\right. \)</td>
@@ -599,11 +618,13 @@ function phapl_setup_canvases(phapl_canvases, phapl_all_points)
 <td onclick="phapl_set(this, '(x + y) * (y - 2)', 'x - 1')">30. \( \left\{ \begin{aligned}\dot{x} &= \left(x + y\right) \left(y - 2\right) \\\dot{y} &= x - 1 \end{aligned}\right. \)</td>
 </tr>
 </table>
+</form>
 </div>
 </div>
 
-    <div class="container">
-      <h2>Ввод задания и запуск</h2>
+    </div>
+    <div class="container" id="phapl_div_run">
+      <h2>Ввод/изменение задачи и запуск</h2>
       <form action="#">
         &#x1E8B; = <input type="text" id="dot_x" onchange="phapl_reset_color()" value=""><br>
         &#x1E8F; = <input type="text" id="dot_y" onchange="phapl_reset_color()" value=""><br>
