@@ -1,0 +1,653 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<!-- Copyright © 2018 Aleksey Cherepanov <lyosha@openwall.com> -->
+<!-- Redistribution and use in source and binary forms, with or without modification, are permitted. -->
+<html>
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>phapl: Phase Plane Helper</title>
+    <style>
+      body { font-size: 140%; }
+      input { width: 600px; }
+      .container { width: 90%; border: 1px solid black; padding: 10px; }
+    </style>
+
+    <script type="text/javascript" src="lib/mathjax/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({
+          displayAlign: "left"
+      });
+    </script>
+
+    <script src="lib/lzma-d-min.js" type="text/javascript"></script>
+
+    <!-- shim for ES6 `Promise` builtin -->
+    <script src="lib/Promise.min.js" type="text/javascript"></script>
+    <!-- shim for off-main-thread function compilation -->
+    <script src="lib/FunctionPromise.js" type="text/javascript"></script>
+    <script src="lib/pypyjs.js" type="text/javascript"></script>
+
+    <!-- %% catch errors in javascript -->
+    <script type="text/javascript">
+
+      langtr_lang_index = 1;
+
+      phapl_cached_solutions = {};
+
+      phapl_start = 0;
+
+      function langtr_replace(s) {
+          return s.replace(/\[\[([^\x5d]*)\]\]/g, function (match, p1) {
+              return p1.split(' | ')[langtr_lang_index];
+          })
+      }
+
+      function phapl_populate_cache(b64) {
+          var l = atob(b64);
+          var t = [];
+          for (var i = 0; i < l.length; i++) {
+              t.push(l.charCodeAt(i));
+          }
+          l = t;
+          var lzma = LZMA;
+          lzma.decompress(l,
+              function (result, error) {
+                  // %% handle errors
+                  if (error) {
+                      console.log('error decompressing lzma phapl\'s prepopulated cache: ' + error);
+                  }
+                  var ll = JSON.parse(result);
+                  for (var i in ll) {
+                      phapl_cached_solutions[ll[i][0] ] = [ ll[i][1], ll[i][2] ];
+                  }
+              },
+              function (percent) {});
+      }
+
+      function phapl_show_results(h) {
+          document.getElementById('thediv').innerHTML = h[0];
+          console.log('html ok');
+          eval(h[1]);
+          console.log('canvas ok');
+          MathJax.Hub.Queue(["Typeset", MathJax.Hub, document.getElementById('thediv')]);
+          console.log(new Date().getTime() - phapl_start);
+      }
+
+      function phapl_do() {
+          document.getElementById('thediv').innerHTML = 'PyPy.js is starting. It may take a minute...';
+          phapl_start = new Date().getTime();
+          var dot_x = document.getElementById('dot_x').value;
+          var dot_y = document.getElementById('dot_y').value;
+          var t = '"' + dot_x + '", "' + dot_y + '"';
+          if (t in phapl_cached_solutions) {
+              phapl_show_results(phapl_cached_solutions[t]);
+          } else {
+              pypyjs.stdout = pypyjs.stderr = console.log;
+              pypyjs.ready().then(function() {
+                  document.getElementById('thediv').innerHTML = 'PyPy.js started successfully. Calculations are happening...';
+                  return pypyjs.set('dot_x', dot_x);
+              }).then(function() {
+                  return pypyjs.set('dot_y', dot_y);
+              }).then(function() {
+                  return pypyjs.exec(
+                      'import traceback\n' +
+                      'try:\n' +
+                      '    import libphapl\n' +
+                      '    r = libphapl.task_to_html(str(dot_x), str(dot_y))\n' +
+                      'except:\n' +
+                      '    r = [ u"\\x3cpre\\x3e" + traceback.format_exc() + "\\x3c/pre\\x3e", "" ]\n'
+                  );
+              }).then(function () {
+                  console.log('python part ok');
+                  return pypyjs.get('r');
+              }).then(function (h) {
+                  h[0] = langtr_replace(h[0]);
+                  h[1] = langtr_replace(h[1]);
+                  phapl_cached_solutions[t] = h;
+                  phapl_show_results(h);
+              });
+          }
+      }
+
+      function collapse(id) {
+          var e = document.getElementById(id);
+          var t = e.style.display;
+          if (t != 'none') {
+              t = 'none';
+          } else {
+              t = 'block';
+          }
+          e.style.display = t;
+          e = document.getElementById(id + '-header');
+          t = e.value.split(': ');
+          if (t[0].match('Show')) {
+              t = '\u25bc Hide tasks: ' + t[1];
+          } else {
+              t = '\u25ba Show tasks: ' + t[1];
+          }
+          e.value = t;
+      }
+
+      phapl_colored_td = null;
+
+      function phapl_set(obj, dotx, doty) {
+          if (phapl_colored_td) {
+              phapl_colored_td.style.backgroundColor = null;
+          }
+          obj.style.backgroundColor = 'lightgreen';
+          document.getElementById('dot_x').value = dotx;
+          document.getElementById('dot_y').value = doty;
+          phapl_colored_td = obj;
+          document.getElementById('phapl_div_run').scrollIntoView({ "behaviour" : "smooth" });
+          phapl_do();
+      }
+
+      function phapl_reset_color() {
+          if (phapl_colored_td) {
+              phapl_colored_td.style.backgroundColor = null;
+          }
+      }
+
+      
+function phapl_setup_canvases(phapl_canvases, phapl_all_points)
+{
+    var canvas_properties = {};
+    var all_points = phapl_all_points;
+
+    // draw phase planes
+    for (j in phapl_canvases) {
+        var cid = phapl_canvases[j][0];
+        var hl_fun = phapl_canvases[j][1];
+        var points = phapl_canvases[j][2];
+        var c = document.getElementById(cid);
+        var ctx = c.getContext('2d');
+        ctx.lineJoin = 'bevel';
+
+        var black_color = '#000000';
+        var red_color = '#ff0000';
+        var blue_color = '#0000ff';
+        var fg_color = '#8b008b';
+        var fg2_color = '#008000';
+
+        var height = c.height;
+        var single = (points.length == 1);
+
+        // Calculate borders
+        var pad = 1.0000001;
+        // var pad = 1.0;
+        // var pad = 2.0;
+        var min_x = points[0][0];
+        var max_x = points[0][0];
+        var min_y = points[0][1];
+        var max_y = points[0][1];
+        for (i in points) {
+            var x = points[i][0];
+            var y = points[i][1];
+            if (x > max_x) {
+                max_x = x;
+            }
+            if (y > max_y) {
+                max_y = y;
+            }
+            if (x < min_x) {
+                min_x = x
+            }
+            if (y < min_y) {
+                min_y = y;
+            }
+        }
+        min_x -= pad;
+        min_y -= pad;
+        max_x += pad;
+        max_y += pad;
+
+        // Expand to square
+        // ** After expansion assumption is used: max_x - min_x == max_y - min_y
+        var c_width = max_x - min_x;
+        var c_height = max_y - min_y;
+        var half_dif = Math.abs(c_width - c_height) / 2.0;
+        if (c_width > c_height) {
+            min_y -= half_dif;
+            max_y += half_dif;
+        } else {
+            min_x -= half_dif;
+            max_x += half_dif;
+        }
+        var mid_x = (min_x + max_x) / 2.0;
+        var mid_y = (min_y + max_y) / 2.0;
+        var dif_x = max_x - min_x;
+        var dif_y = max_y - min_y;
+        var height_dif_x = height / dif_x;
+
+        var is_linear_twin = false;
+        var nn = cid.replace('_nonlinear_', '_linear_');
+        if (nn === cid) {
+            nn = cid.replace('_linear_', '_nonlinear_');
+            if (nn != cid) {
+                is_linear_twin = true;
+            }
+        }
+        if (nn === cid) {
+            nn = false;
+        }
+
+        if (is_linear_twin) {
+            all_points = points;
+        } else {
+            all_points = phapl_all_points;
+        }
+
+        canvas_properties[cid] = {
+            // function to draw half line
+            'hl_fun' : hl_fun,
+            'elem' : c,
+            'twin_cid' : nn,
+            'ctx' : ctx,
+            'mid_x' : mid_x,
+            'mid_y' : mid_y,
+            'min_x' : min_x,
+            'min_y' : min_y,
+            'max_x' : max_x,
+            'max_y' : max_y,
+            'dif_x' : dif_x,
+            'dif_y' : dif_y,
+            'height_dif_x' : height_dif_x
+        };
+
+        var line_width = 1.0 * dif_x / height;
+
+
+        // console.log(j, min_x, mid_x, max_x);
+        // console.log(j, min_y, mid_y, max_y);
+
+        // ctx.fillStyle = '#ffffff';
+        // ctx.fillStyle = '#ff0000';
+        // ctx.fillRect(0, 0, height, height);
+
+        // Scale and translate
+        ctx.scale(height / dif_x, height / dif_y);
+        ctx.translate(-min_x, -min_y);
+
+        // ctx.fillStyle = '#ffffff';
+        // ctx.fillRect(min_x, min_y, dif_x, dif_y);
+
+        var invert = function (y) { return mid_y - (y - mid_y); };
+        // var invert = function (y) { return y; };
+
+        for (j in all_points) {
+            var px = all_points[j][0];
+            var py = all_points[j][1];
+            // Circles around special points
+            ctx.strokeStyle = '#ff0000';
+            ctx.lineWidth = line_width;
+            ctx.beginPath();
+            ctx.arc(px, invert(py), 10.0 * dif_x / height, 0, 2 * Math.PI);
+            ctx.stroke();
+        }
+
+
+        var f = function (x, y) {
+
+            // console.log(x, y);
+
+            // ctx.fillStyle = '#ff0000';
+            // ctx.fillRect(x, mid_y - (y - mid_y), 0.1, 0.1);
+
+            var f2 = function (x, y, direction) {
+                hl_fun(ctx, direction, x, y, single,
+                       black_color, fg_color, fg2_color,
+                       // %% height * 5, height,
+                       height * 2, height,
+                       min_x, mid_x, max_x,
+                       min_y, mid_y, max_y,
+                       height_dif_x, line_width / 2
+                      );
+            };
+            f2(x, y, -1);
+            f2(x, y, 1);
+        };
+
+        // Initial lines
+        for (j in points) {
+            var px = points[j][0];
+            var py = points[j][1];
+
+            // ctx.strokeStyle = '#ff0000';
+            // ctx.lineWidth = line_width / 2;
+            // ctx.strokeRect(px - 1, invert(py) - 1, 2, 2);
+
+            var ji;
+
+            // var parts = Math.floor(30 / points.length);
+            // // var parts = 30;
+            // for (ji = 0; ji < parts + 1; ji++) {
+            //     f(px - 1 + ji * 2.0 / parts, py - 1);
+            //     f(px - 1 + ji * 2.0 / parts, py + 1);
+            //     f(px - 1, py - 1 + ji * 2.0 / parts);
+            //     f(px + 1, py - 1 + ji * 2.0 / parts);
+            // }
+
+        }
+
+        // for (ji = 0; ji < 40 + 1; ji++) {
+        //     f(Math.random() * dif_x + min_x, Math.random() * dif_y + min_y);
+        // }
+
+        var w = dif_x / 10.0;
+        for (var tx = min_x; tx <= max_x; tx += w) {
+            for (var ty = min_y; ty <= max_y; ty += w) {
+                f(tx + Math.random() * w, ty + Math.random() * w);
+            }
+        }
+
+        var shift = 10.0 * dif_x / height;
+        for (j in all_points) {
+            var px = all_points[j][0];
+            var py = all_points[j][1];
+            f(px - shift, py);
+            f(px, py - shift);
+            f(px + shift, py);
+            f(px, py + shift);
+        }
+
+        // Grid
+        ctx.lineWidth = line_width;
+        var line = function (ctx, x1, y1, x2, y2) {
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.stroke();
+        };
+        for (i = Math.floor(min_x) - 1; i < Math.floor(max_x) + 1; i += 1.0) {
+            // %% draw axes separately
+            ctx.strokeStyle = (i == 0.0 ? 'violet' : 'lightgrey');
+            line(ctx, i, invert(min_y - 1), i, invert(max_y + 1));
+        }
+        for (i = Math.floor(min_y) - 1; i < Math.floor(max_y) + 1; i += 1.0) {
+            // %% draw axes separately
+            ctx.strokeStyle = (i == 0.0 ? 'violet' : 'lightgrey');
+            line(ctx, min_x - 1, invert(i), max_x + 1, invert(i));
+        }
+
+        // Triangles to mark axis and special points
+        var draw_triangle = function (x, y, color, orientation, size) {
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            if (orientation) {
+                // vertical, like A
+                ctx.moveTo(x - size / 2, invert(y));
+                ctx.lineTo(x, invert(y + size));
+                ctx.lineTo(x + size / 2, invert(y));
+            } else {
+                // horizontal, like |>
+                ctx.moveTo(x, invert(y - size / 2));
+                ctx.lineTo(x + size, invert(y));
+                ctx.lineTo(x, invert(y + size / 2));
+            }
+            ctx.fill();
+        };
+        var axis_size = 15.0 * dif_x / height;
+        draw_triangle(0.0, min_y, black_color, true, axis_size);
+        draw_triangle(min_x, 0.0, black_color, false, axis_size);
+        var point_size = 10.0 * dif_x / height;
+        for (j in all_points) {
+            var px = all_points[j][0];
+            var py = all_points[j][1];
+            draw_triangle(px, min_y, red_color, true, point_size);
+            draw_triangle(min_x, py, red_color, false, point_size);
+        }
+
+        // Eigen vectors
+        for (j in all_points) {
+            if (all_points[j].length > 2) {
+                var px = all_points[j][0];
+                var py = all_points[j][1];
+                var vv = [ 0 ]
+                if (all_points[j].length > 4) {
+                    vv.push(1);
+                }
+                for (var jj in vv) {
+                    var vx = all_points[j][2 + 2 * jj];
+                    var vy = all_points[j][3 + 2 * jj];
+                    // normalize to 0.5 in length
+                    var m = Math.sqrt(0.25 / (vx * vx + vy * vy));
+                    vx *= m;
+                    vy *= m;
+                    ctx.strokeStyle = 'cyan';
+                    line(ctx, px - vx, invert(py - vy), px + vx, invert(py + vy));
+                }
+            }
+        }
+
+        canvas_properties[cid].saved_canvas = ctx.getImageData(0, 0, c.width, c.height);
+
+        // Actions for mouse
+        // %% lift functions, don't create every time; is it important at all?
+        c.addEventListener('mouseout', function (e) {
+            var c = e.srcElement;
+            if (!c) {
+                c = e.originalTarget;
+            }
+            var d = canvas_properties[c.id];
+            d.ctx.putImageData(d.saved_canvas, 0, 0);
+            var nn = d.twin_cid;
+            if (nn != false) {
+                var d2 = canvas_properties[nn];
+                d2.ctx.putImageData(d2.saved_canvas, 0, 0);
+            }
+        });
+        c.onmousemove = (function (e) {
+            var c = e.srcElement;
+            if (!c) {
+                c = e.originalTarget;
+            }
+            var d = canvas_properties[c.id];
+            var rect = c.getBoundingClientRect();
+            var mx = e.clientX - rect.left;
+            var my = e.clientY - rect.top;
+            mx = mx / rect.width * d.dif_x + d.min_x;
+            my = d.mid_y - ((my / rect.height * d.dif_y + d.min_y) - d.mid_y);
+            d.ctx.putImageData(d.saved_canvas, 0, 0);
+            d.hl_fun(d.ctx, 1.0, mx, my, false,
+                     red_color, fg_color, fg2_color,
+                     // %% c.height * 3, c.height,
+                     c.height * 1.5, c.height,
+                     d.min_x, d.mid_x, d.max_x,
+                     d.min_y, d.mid_y, d.max_y,
+                     d.height_dif_x, line_width * 4
+                    );
+            d.hl_fun(d.ctx, -1.0, mx, my, false,
+                     blue_color, fg_color, fg2_color,
+                     // %% c.height * 3, c.height,
+                     c.height * 1.5, c.height,
+                     d.min_x, d.mid_x, d.max_x,
+                     d.min_y, d.mid_y, d.max_y,
+                     d.height_dif_x, line_width * 4
+                    );
+            var nn = d.twin_cid;
+            if (nn != false) {
+                var d2 = canvas_properties[nn];
+                mx = e.clientX - rect.left;
+                my = e.clientY - rect.top;
+                mx = mx / rect.width * d2.dif_x + d2.min_x;
+                my = d2.mid_y - ((my / rect.height * d2.dif_y + d2.min_y) - d2.mid_y);
+                d2.ctx.putImageData(d2.saved_canvas, 0, 0);
+                d2.hl_fun(d2.ctx, 1.0, mx, my, false,
+                          red_color, fg_color, fg2_color,
+                          // %% see similar above
+                          d2.elem.height * 1.5, d2.elem.height,
+                          d2.min_x, d2.mid_x, d2.max_x,
+                          d2.min_y, d2.mid_y, d2.max_y,
+                          d2.height_dif_x, line_width * 4
+                         );
+                d2.hl_fun(d2.ctx, -1.0, mx, my, false,
+                          blue_color, fg_color, fg2_color,
+                          // %% see similar above
+                          d2.elem.height * 1.5, d2.elem.height,
+                          d2.min_x, d2.mid_x, d2.max_x,
+                          d2.min_y, d2.mid_y, d2.max_y,
+                          d2.height_dif_x, line_width * 4
+                         );
+            }
+        });
+    }
+}
+
+
+      phapl_populate_cache('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');
+
+    </script>
+
+  </head>
+
+  <body>
+
+    <div class="container">
+      Language / язык: <a href="phapl.en.html">English</a>, <a href="phapl.ru.html">Русский</a>.
+    </div>
+    <div class="container">
+      <h2>PhaPl</h2>
+      <p>PhaPl is a software to research and plot phase portraits of autonomous systems of 2 differential equations on a plane. PhaPl works as a site or as a local html-page that works offline.</p>
+      <p><a href="#" onclick="document.getElementById('phapl_div_choose').scrollIntoView({ 'behaviour' : 'smooth' }); return false">Go to task input/choice below.</a></p>
+      <p><a href="https://github.com/phapl/phapl.github.io/archive/master.zip">Download archive for local offline use.</a> ~9 MB to download, ~37 MB unpacked on disk.</p>
+      <p>Current version was published on: 2018-05-27 01:58 +0300.</p>
+      <p>You are welcome to send your suggestions and reports about errors / bugs / problems through <a href="https://github.com/phapl/phapl.github.io/issues">GitHub</a>.</p>
+    </div>
+    <div class="container" id="phapl_div_choose">
+      <h2>Choose task</h2>
+      <div>
+<form>
+<input type="button" id="block1-header" onclick="collapse('block1')" value="&#9658; Show tasks: Tasks 16 (main.pdf)">
+<div id="block1" style="display: none">
+Copyright © 2010 Astashova I.V., Nikishkin V.A.<br><i>Astashova I.V., Nikishkin V.A.</i> Practicum on course "Differential equations". Tutorial. 3rd edition, revised. Moscow: Publishing Center of EOI, 2010. 94 p., illustrated. URL: <a href="http://new.math.msu.su/diffur/main_du_2010.pdf">http://new.math.msu.su/diffur/main_du_2010.pdf</a></br>
+<table border="1" style="border-collapse: collapse;">
+<tr>
+<td onclick="phapl_set(this, '3 * x - y', '13 * x - 3 * y')">1. \( \left\{ \begin{aligned}\dot{x} &= 3 x - y \\\dot{y} &= 13 x - 3 y \end{aligned}\right. \)</td>
+<td onclick="phapl_set(this, 'x - 3 * y', '5 * x + 9 * y')">11. \( \left\{ \begin{aligned}\dot{x} &= x - 3 y \\\dot{y} &= 5 x + 9 y \end{aligned}\right. \)</td>
+<td onclick="phapl_set(this, '7 * x - 4 * y', '4 * x - y')">21. \( \left\{ \begin{aligned}\dot{x} &= 7 x - 4 y \\\dot{y} &= 4 x - y \end{aligned}\right. \)</td>
+</tr>
+<tr>
+<td onclick="phapl_set(this, 'x - 3 * y', '7 * x - 9 * y')">2. \( \left\{ \begin{aligned}\dot{x} &= x - 3 y \\\dot{y} &= 7 x - 9 y \end{aligned}\right. \)</td>
+<td onclick="phapl_set(this, '2 * x - y', '4 * x - 3 * y')">12. \( \left\{ \begin{aligned}\dot{x} &= 2 x - y \\\dot{y} &= 4 x - 3 y \end{aligned}\right. \)</td>
+<td onclick="phapl_set(this, 'x - y', 'x + y')">22. \( \left\{ \begin{aligned}\dot{x} &= x - y \\\dot{y} &= x + y \end{aligned}\right. \)</td>
+</tr>
+<tr>
+<td onclick="phapl_set(this, '5 * x - 3 * y', '3 * x - y')">3. \( \left\{ \begin{aligned}\dot{x} &= 5 x - 3 y \\\dot{y} &= 3 x - y \end{aligned}\right. \)</td>
+<td onclick="phapl_set(this, '4 * x - 5 * y', '5 * x - 4 * y')">13. \( \left\{ \begin{aligned}\dot{x} &= 4 x - 5 y \\\dot{y} &= 5 x - 4 y \end{aligned}\right. \)</td>
+<td onclick="phapl_set(this, '3 * x + 2 * y', '3 * x + 4 * y')">23. \( \left\{ \begin{aligned}\dot{x} &= 3 x + 2 y \\\dot{y} &= 3 x + 4 y \end{aligned}\right. \)</td>
+</tr>
+<tr>
+<td onclick="phapl_set(this, 'x - 9 * y', 'x + y')">4. \( \left\{ \begin{aligned}\dot{x} &= x - 9 y \\\dot{y} &= x + y \end{aligned}\right. \)</td>
+<td onclick="phapl_set(this, '-7 * x + 3 * y', '-x - 3 * y')">14. \( \left\{ \begin{aligned}\dot{x} &= - 7 x + 3 y \\\dot{y} &= - x - 3 y \end{aligned}\right. \)</td>
+<td onclick="phapl_set(this, '3 * x - 4 * y', 'x - 2 * y')">24. \( \left\{ \begin{aligned}\dot{x} &= 3 x - 4 y \\\dot{y} &= x - 2 y \end{aligned}\right. \)</td>
+</tr>
+<tr>
+<td onclick="phapl_set(this, '4 * x + y', '2 * x + 5 * y')">5. \( \left\{ \begin{aligned}\dot{x} &= 4 x + y \\\dot{y} &= 2 x + 5 y \end{aligned}\right. \)</td>
+<td onclick="phapl_set(this, '9 * x - 5 * y', '5 * x - y')">15. \( \left\{ \begin{aligned}\dot{x} &= 9 x - 5 y \\\dot{y} &= 5 x - y \end{aligned}\right. \)</td>
+<td onclick="phapl_set(this, '2 * x - y', '5 * x - 2 * y')">25. \( \left\{ \begin{aligned}\dot{x} &= 2 x - y \\\dot{y} &= 5 x - 2 y \end{aligned}\right. \)</td>
+</tr>
+<tr>
+<td onclick="phapl_set(this, '5 * x - 3 * y', '4 * x - 3 * y')">6. \( \left\{ \begin{aligned}\dot{x} &= 5 x - 3 y \\\dot{y} &= 4 x - 3 y \end{aligned}\right. \)</td>
+<td onclick="phapl_set(this, 'x - 2 * y', '2 * x + y')">16. \( \left\{ \begin{aligned}\dot{x} &= x - 2 y \\\dot{y} &= 2 x + y \end{aligned}\right. \)</td>
+<td onclick="phapl_set(this, 'x - 2 * y', '7 * x - 8 * y')">26. \( \left\{ \begin{aligned}\dot{x} &= x - 2 y \\\dot{y} &= 7 x - 8 y \end{aligned}\right. \)</td>
+</tr>
+<tr>
+<td onclick="phapl_set(this, 'x - 2 * y', '13 * x - y')">7. \( \left\{ \begin{aligned}\dot{x} &= x - 2 y \\\dot{y} &= 13 x - y \end{aligned}\right. \)</td>
+<td onclick="phapl_set(this, '8 * x - 3 * y', '2 * x + 3 * y')">17. \( \left\{ \begin{aligned}\dot{x} &= 8 x - 3 y \\\dot{y} &= 2 x + 3 y \end{aligned}\right. \)</td>
+<td onclick="phapl_set(this, '3 * x - 2 * y', '2 * x - y')">27. \( \left\{ \begin{aligned}\dot{x} &= 3 x - 2 y \\\dot{y} &= 2 x - y \end{aligned}\right. \)</td>
+</tr>
+<tr>
+<td onclick="phapl_set(this, '-5 * x + y', '2 * x - 4 * y')">8. \( \left\{ \begin{aligned}\dot{x} &= - 5 x + y \\\dot{y} &= 2 x - 4 y \end{aligned}\right. \)</td>
+<td onclick="phapl_set(this, '2 * x + y', '4 * x - y')">18. \( \left\{ \begin{aligned}\dot{x} &= 2 x + y \\\dot{y} &= 4 x - y \end{aligned}\right. \)</td>
+<td onclick="phapl_set(this, '4 * x - 2 * y', 'x + 2 * y')">28. \( \left\{ \begin{aligned}\dot{x} &= 4 x - 2 y \\\dot{y} &= x + 2 y \end{aligned}\right. \)</td>
+</tr>
+<tr>
+<td onclick="phapl_set(this, '6 * x - y', 'x + 4 * y')">9. \( \left\{ \begin{aligned}\dot{x} &= 6 x - y \\\dot{y} &= x + 4 y \end{aligned}\right. \)</td>
+<td onclick="phapl_set(this, '2 * x - 5 * y', '4 * x - 2 * y')">19. \( \left\{ \begin{aligned}\dot{x} &= 2 x - 5 y \\\dot{y} &= 4 x - 2 y \end{aligned}\right. \)</td>
+<td onclick="phapl_set(this, '5 * x + 3 * y', 'x + 3 * y')">29. \( \left\{ \begin{aligned}\dot{x} &= 5 x + 3 y \\\dot{y} &= x + 3 y \end{aligned}\right. \)</td>
+</tr>
+<tr>
+<td onclick="phapl_set(this, 'x - 2 * y', 'x + 3 * y')">10. \( \left\{ \begin{aligned}\dot{x} &= x - 2 y \\\dot{y} &= x + 3 y \end{aligned}\right. \)</td>
+<td onclick="phapl_set(this, '-2 * x - 3 * y', '4 * x - 9 * y')">20. \( \left\{ \begin{aligned}\dot{x} &= - 2 x - 3 y \\\dot{y} &= 4 x - 9 y \end{aligned}\right. \)</td>
+<td onclick="phapl_set(this, '2 * x - y', '5 * x - 4 * y')">30. \( \left\{ \begin{aligned}\dot{x} &= 2 x - y \\\dot{y} &= 5 x - 4 y \end{aligned}\right. \)</td>
+</tr>
+</table>
+</form>
+</div>
+</div>
+<div>
+<form>
+<input type="button" id="block2-header" onclick="collapse('block2')" value="&#9658; Show tasks: Tasks 17 (main.pdf)">
+<div id="block2" style="display: none">
+Copyright © 2010 Astashova I.V., Nikishkin V.A.<br><i>Astashova I.V., Nikishkin V.A.</i> Practicum on course "Differential equations". Tutorial. 3rd edition, revised. Moscow: Publishing Center of EOI, 2010. 94 p., illustrated. URL: <a href="http://new.math.msu.su/diffur/main_du_2010.pdf">http://new.math.msu.su/diffur/main_du_2010.pdf</a></br>
+<b>Comments:</b> Task 22 got additional parentheses for ln(). The equilibrium points are not convenient otherwise.</br>
+<table border="1" style="border-collapse: collapse;">
+<tr>
+<td onclick="phapl_set(this, '(x + y)^2 - 1', '- y^2 - x + 1')">1. \( \left\{ \begin{aligned}\dot{x} &= \left(x + y\right)^{2} - 1 \\\dot{y} &= - x - y^{2} + 1 \end{aligned}\right. \)</td>
+<td onclick="phapl_set(this, 'sqrt(x^2 - y + 2) - 2', 'arctg(x^2 + x * y)')">11. \( \left\{ \begin{aligned}\dot{x} &= \sqrt{x^{2} - y + 2} - 2 \\\dot{y} &= \operatorname{arctg}{\left (x \left(x + y\right) \right )} \end{aligned}\right. \)</td>
+<td onclick="phapl_set(this, 'x * y - 4', '(x - 4) * (y - x)')">21. \( \left\{ \begin{aligned}\dot{x} &= x y - 4 \\\dot{y} &= - \left(x - 4\right) \left(x - y\right) \end{aligned}\right. \)</td>
+</tr>
+<tr>
+<td onclick="phapl_set(this, '- 2 * y - x^3', '3 * x - 4 * y^3')">2. \( \left\{ \begin{aligned}\dot{x} &= - x^{3} - 2 y \\\dot{y} &= 3 x - 4 y^{3} \end{aligned}\right. \)</td>
+<td onclick="phapl_set(this, 'sqrt((x - y)^2 + 3) - 2', 'e^(y^2 - x) - e')">12. \( \left\{ \begin{aligned}\dot{x} &= \sqrt{\left(x - y\right)^{2} + 3} - 2 \\\dot{y} &= - e + e^{- x + y^{2}} \end{aligned}\right. \)</td>
+<td onclick="phapl_set(this, 'x^2 - y', 'ln(1 - x + x^2) - ln(3)')">22. \( \left\{ \begin{aligned}\dot{x} &= x^{2} - y \\\dot{y} &= \log{\left (x^{2} - x + 1 \right )} - \log{\left (3 \right )} \end{aligned}\right. \)</td>
+</tr>
+<tr>
+<td onclick="phapl_set(this, 'x + y + 1', 'y + sqrt(1 + 2 * x^2)')">3. \( \left\{ \begin{aligned}\dot{x} &= x + y + 1 \\\dot{y} &= y + \sqrt{2 x^{2} + 1} \end{aligned}\right. \)</td>
+<td onclick="phapl_set(this, '3 - sqrt(4 - x^2 + y)', 'ln(x^2 -3)')">13. \( \left\{ \begin{aligned}\dot{x} &= - \sqrt{- x^{2} + y + 4} + 3 \\\dot{y} &= \log{\left (x^{2} - 3 \right )} \end{aligned}\right. \)</td>
+<td onclick="phapl_set(this, 'y', 'sin(x + y)')">23. \( \left\{ \begin{aligned}\dot{x} &= y \\\dot{y} &= \sin{\left (x + y \right )} \end{aligned}\right. \)</td>
+</tr>
+<tr>
+<td onclick="phapl_set(this, 'x^2 - y', '(x - y) * (x - y + 2)')">4. \( \left\{ \begin{aligned}\dot{x} &= x^{2} - y \\\dot{y} &= \left(x - y\right) \left(x - y + 2\right) \end{aligned}\right. \)</td>
+<td onclick="phapl_set(this, '2 * x + y^2 - 1', '6 * x - y^2 + 1')">14. \( \left\{ \begin{aligned}\dot{x} &= 2 x + y^{2} - 1 \\\dot{y} &= 6 x - y^{2} + 1 \end{aligned}\right. \)</td>
+<td onclick="phapl_set(this, 'ln(y^2 - x)', 'x - y - 1')">24. \( \left\{ \begin{aligned}\dot{x} &= \log{\left (- x + y^{2} \right )} \\\dot{y} &= x - y - 1 \end{aligned}\right. \)</td>
+</tr>
+<tr>
+<td onclick="phapl_set(this, 'ln((y^2 - y + 1) / 3)', 'x^2 - y^2')">5. \( \left\{ \begin{aligned}\dot{x} &= \log{\left (\frac{y^{2}}{3} - \frac{y}{3} + \frac{1}{3} \right )} \\\dot{y} &= x^{2} - y^{2} \end{aligned}\right. \)</td>
+<td onclick="phapl_set(this, '(2 * x - y)^2 - 9', '9 - (x - 2 * y)^2')">15. \( \left\{ \begin{aligned}\dot{x} &= \left(2 x - y\right)^{2} - 9 \\\dot{y} &= - \left(x - 2 y\right)^{2} + 9 \end{aligned}\right. \)</td>
+<td onclick="phapl_set(this, '(x - y) * (x + 3)', 'y - 1')">25. \( \left\{ \begin{aligned}\dot{x} &= \left(x + 3\right) \left(x - y\right) \\\dot{y} &= y - 1 \end{aligned}\right. \)</td>
+</tr>
+<tr>
+<td onclick="phapl_set(this, '2 * x * y - 4 * y - 8', '4 * y^2 - x^2')">6. \( \left\{ \begin{aligned}\dot{x} &= 2 x y - 4 y - 8 \\\dot{y} &= - x^{2} + 4 y^{2} \end{aligned}\right. \)</td>
+<td onclick="phapl_set(this, 'e^y - e^x', 'sqrt(3 * x + y^2) - 2')">16. \( \left\{ \begin{aligned}\dot{x} &= - e^{x} + e^{y} \\\dot{y} &= \sqrt{3 x + y^{2}} - 2 \end{aligned}\right. \)</td>
+<td onclick="phapl_set(this, 'y^2 - 1', '(x - 1) * (x - 2 * y)')">26. \( \left\{ \begin{aligned}\dot{x} &= y^{2} - 1 \\\dot{y} &= \left(x - 1\right) \left(x - 2 y\right) \end{aligned}\right. \)</td>
+</tr>
+<tr>
+<td onclick="phapl_set(this, '4 - 4 * x - 2 * y', 'x * y')">7. \( \left\{ \begin{aligned}\dot{x} &= - 4 x - 2 y + 4 \\\dot{y} &= x y \end{aligned}\right. \)</td>
+<td onclick="phapl_set(this, '2 * x + y^2 - 1', '6 * x - y^2 + 1')">17. \( \left\{ \begin{aligned}\dot{x} &= 2 x + y^{2} - 1 \\\dot{y} &= 6 x - y^{2} + 1 \end{aligned}\right. \)</td>
+<td onclick="phapl_set(this, '(y - 1) * (y - x)', 'x^2 + 3 * y + 2')">27. \( \left\{ \begin{aligned}\dot{x} &= - \left(x - y\right) \left(y - 1\right) \\\dot{y} &= x^{2} + 3 y + 2 \end{aligned}\right. \)</td>
+</tr>
+<tr>
+<td onclick="phapl_set(this, 'y^2 - 4 * x^2', '4 * y - 8')">8. \( \left\{ \begin{aligned}\dot{x} &= - 4 x^{2} + y^{2} \\\dot{y} &= 4 y - 8 \end{aligned}\right. \)</td>
+<td onclick="phapl_set(this, 'x^2 - y^2 - 1', '2 * y')">18. \( \left\{ \begin{aligned}\dot{x} &= x^{2} - y^{2} - 1 \\\dot{y} &= 2 y \end{aligned}\right. \)</td>
+<td onclick="phapl_set(this, 'x * y - 4 * y - 3 * x^2 + 12 * x', 'x^2 - 1')">28. \( \left\{ \begin{aligned}\dot{x} &= - 3 x^{2} + x y + 12 x - 4 y \\\dot{y} &= x^{2} - 1 \end{aligned}\right. \)</td>
+</tr>
+<tr>
+<td onclick="phapl_set(this, '(2 * x - y) * (x - 3)', 'x * y - 3')">9. \( \left\{ \begin{aligned}\dot{x} &= \left(x - 3\right) \left(2 x - y\right) \\\dot{y} &= x y - 3 \end{aligned}\right. \)</td>
+<td onclick="phapl_set(this, '1 - x^2 - y^2', '2 * x')">19. \( \left\{ \begin{aligned}\dot{x} &= - x^{2} - y^{2} + 1 \\\dot{y} &= 2 x \end{aligned}\right. \)</td>
+<td onclick="phapl_set(this, 'x * y - y - 2 * x^2 + 2 * x', '(y - 1) * (x + 3)')">29. \( \left\{ \begin{aligned}\dot{x} &= - 2 x^{2} + x y + 2 x - y \\\dot{y} &= \left(x + 3\right) \left(y - 1\right) \end{aligned}\right. \)</td>
+</tr>
+<tr>
+<td onclick="phapl_set(this, 'x^2 + y^2 - 6 * x - 8 * y', 'x * (2 * y - x + 5)')">10. \( \left\{ \begin{aligned}\dot{x} &= x^{2} - 6 x + y^{2} - 8 y \\\dot{y} &= x \left(- x + 2 y + 5\right) \end{aligned}\right. \)</td>
+<td onclick="phapl_set(this, 'x^2 + y', 'x^2 - (y + 1)^2')">20. \( \left\{ \begin{aligned}\dot{x} &= x^{2} + y \\\dot{y} &= x^{2} - \left(y + 1\right)^{2} \end{aligned}\right. \)</td>
+<td onclick="phapl_set(this, '(x + y) * (y - 2)', 'x - 1')">30. \( \left\{ \begin{aligned}\dot{x} &= \left(x + y\right) \left(y - 2\right) \\\dot{y} &= x - 1 \end{aligned}\right. \)</td>
+</tr>
+</table>
+</form>
+</div>
+</div>
+
+    </div>
+    <div class="container" id="phapl_div_run">
+      <h2>Input/modify task and start</h2>
+      <form action="#">
+        &#x1E8B; = <input type="text" id="dot_x" onchange="phapl_reset_color()" value=""><br>
+        &#x1E8F; = <input type="text" id="dot_y" onchange="phapl_reset_color()" value=""><br>
+        <input type="button" value="Research and plot!" onclick="phapl_do(); return false">
+      </form>
+    </div>
+
+    <div id="thediv">
+    </div>
+    <br><br><br><br><br><br><br><br>
+  </body>
+</html>
