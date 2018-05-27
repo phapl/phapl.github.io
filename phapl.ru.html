@@ -502,14 +502,15 @@ function phapl_setup_canvases(phapl_canvases, phapl_all_points)
   <body>
 
     <div class="container">
-      Language / язык: <a href="phapl.en.html">English</a>, <a href="phapl.ru.html">Русский</a>.
+      Language / язык: <a href="phapl.en.html">English</a>, <b>Русский</b>.
     </div>
     <div class="container">
       <h2>PhaPl</h2>
       <p>PhaPl - программное обеспечение для автоматического построения и исследования фазовых портретов автономных динамических систем на плоскости. PhaPl работает как сайт или как локальная html-страница, не требующая подключения к сети Интернет.</p>
       <p><a href="#" onclick="document.getElementById('phapl_div_choose').scrollIntoView({ 'behaviour' : 'smooth' }); return false">Перейти к выбору/вводу задачи ниже.</a></p>
       <p><a href="https://github.com/phapl/phapl.github.io/archive/master.zip">Скачать архив для локального использования</a> (~9 МБ для скачивания, ~37 МБ на диске после распаковки).</p>
-      <p>Дата публикации этой версии: 2018-05-27 02:31 +0300.</p>
+      <p>Дата публикации этой версии: 2018-05-27 12:30 +0300.</p>
+      <p>"Math Processing Error" везде означает проблему с кешем. Обновление страницы в обход кеша должно помочь (Shift-F5 в Chrome'е, Control-F5 в Firefox'е).</p>
       <p>Об ошибках, недостатках и возможностях улучшения можно сообщить через <a href="https://github.com/phapl/phapl.github.io/issues">GitHub</a>.</p>
     </div>
     <div class="container" id="phapl_div_choose">
@@ -642,7 +643,7 @@ Copyright © 2010 Асташова И. В., Никишкин В. А.<br><i>Ас�
       <form action="#">
         &#x1E8B; = <input type="text" id="dot_x" onchange="phapl_reset_color()" value=""><br>
         &#x1E8F; = <input type="text" id="dot_y" onchange="phapl_reset_color()" value=""><br>
-        <input type="button" value="Исследовать и построить!" onclick="phapl_do(); return false">
+        <input type="button" value="Исследовать и построить!" onclick="phapl_do()">
       </form>
     </div>
 

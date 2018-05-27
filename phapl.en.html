@@ -502,14 +502,15 @@ function phapl_setup_canvases(phapl_canvases, phapl_all_points)
   <body>
 
     <div class="container">
-      Language / язык: <a href="phapl.en.html">English</a>, <a href="phapl.ru.html">Русский</a>.
+      Language / язык: <b>English</b>, <a href="phapl.ru.html">Русский</a>.
     </div>
     <div class="container">
       <h2>PhaPl</h2>
       <p>PhaPl is a software to research and plot phase portraits of autonomous systems of 2 differential equations on a plane. PhaPl works as a site or as a local html-page that works offline.</p>
       <p><a href="#" onclick="document.getElementById('phapl_div_choose').scrollIntoView({ 'behaviour' : 'smooth' }); return false">Go to task input/choice below.</a></p>
       <p><a href="https://github.com/phapl/phapl.github.io/archive/master.zip">Download archive for local offline use</a> (~9 MB to download, ~37 MB to be stored unpacked on disk).</p>
-      <p>This version was published on: 2018-05-27 02:31 +0300.</p>
+      <p>This version was published on: 2018-05-27 12:30 +0300.</p>
+      <p>"Math Processing Error" everywhere should be a problem with cache. Refreshing of page bypassing cache should help (press Shift-F5 in Chrome or Control-F5 in Firefox).</p>
       <p>You are welcome to send your suggestions and reports about errors / bugs / problems through <a href="https://github.com/phapl/phapl.github.io/issues">GitHub</a>.</p>
     </div>
     <div class="container" id="phapl_div_choose">
@@ -642,7 +643,7 @@ Copyright © 2010 Astashova I.V., Nikishkin V.A.<br><i>Astashova I.V., Nikishkin
       <form action="#">
         &#x1E8B; = <input type="text" id="dot_x" onchange="phapl_reset_color()" value=""><br>
         &#x1E8F; = <input type="text" id="dot_y" onchange="phapl_reset_color()" value=""><br>
-        <input type="button" value="Research and plot!" onclick="phapl_do(); return false">
+        <input type="button" value="Research and plot!" onclick="phapl_do()">
       </form>
     </div>
 
