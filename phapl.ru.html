@@ -41,6 +41,10 @@
           })
       }
 
+      function scroll_to(id) {
+          document.getElementById(id).scrollIntoView({ "behaviour" : "smooth" });
+      }
+
       function phapl_populate_cache(b64) {
           var l = atob(b64);
           var t = [];
@@ -108,6 +112,44 @@
           }
       }
 
+      function phapl_gen_linear(equilibria_type, start_p) {
+          scroll_to('phapl_div_run');
+          document.getElementById('thediv').innerHTML = 'Запускается PyPy.js, это может занять минуту...';
+          phapl_start = new Date().getTime();
+          pypyjs.stdout = pypyjs.stderr = console.log;
+          pypyjs.ready().then(function() {
+              document.getElementById('thediv').innerHTML = 'PyPy.js запущен успешно. Идут вычисления...';
+              return pypyjs.set('equilibria_type', equilibria_type);
+          }).then(function() {
+              return pypyjs.exec(
+                  'import traceback\n' +
+                  'try:\n' +
+                  '    import tg1\n' +
+                  '    r = tg1.gen_linear(str(equilibria_type))\n' +
+                  'except:\n' +
+                  '    r = [ u"\\x3cpre\\x3e" + traceback.format_exc() + "\\x3c/pre\\x3e" ]\n'
+              );
+          }).then(function () {
+              console.log('gen: python part ok');
+              return pypyjs.get('r');
+          }).then(function (h) {
+              if (h.length == 1) {
+                  document.getElementById('thediv').innerHTML = h[0];
+              } else {
+                  document.getElementById('dot_x').value = h[0];
+                  document.getElementById('dot_y').value = h[1];
+                  if (start_p) {
+                      phapl_do();
+                  } else {
+                      document.getElementById('thediv').innerHTML = langtr_replace(h[2]);
+                      MathJax.Hub.Queue(["Typeset", MathJax.Hub, document.getElementById('thediv')]);
+                  }
+                  console.log(new Date().getTime() - phapl_start);
+              }
+              scroll_to('phapl_div_run');
+          });
+      }
+
       function collapse(id) {
           var e = document.getElementById(id);
           var t = e.style.display;
@@ -137,7 +179,7 @@
           document.getElementById('dot_x').value = dotx;
           document.getElementById('dot_y').value = doty;
           phapl_colored_td = obj;
-          document.getElementById('phapl_div_run').scrollIntoView({ "behaviour" : "smooth" });
+          scroll_to('phapl_div_run');
           phapl_do();
       }
 
@@ -507,9 +549,9 @@ function phapl_setup_canvases(phapl_canvases, phapl_all_points)
     <div class="container">
       <h2>PhaPl</h2>
       <p>PhaPl - программное обеспечение для автоматического построения и исследования фазовых портретов автономных динамических систем на плоскости. PhaPl работает как сайт или как локальная html-страница, не требующая подключения к сети Интернет.</p>
-      <p><a href="#" onclick="document.getElementById('phapl_div_choose').scrollIntoView({ 'behaviour' : 'smooth' }); return false">Перейти к выбору/вводу задачи ниже.</a></p>
+      <p><a href="#" onclick="scroll_to('phapl_div_choose'); return false">Перейти к выбору/вводу задачи ниже.</a></p>
       <p><a href="https://github.com/phapl/phapl.github.io/archive/master.zip">Скачать архив для локального использования</a> (~9 МБ для скачивания, ~37 МБ на диске после распаковки).</p>
-      <p>Дата публикации этой версии: 2018-05-27 12:30 +0300.</p>
+      <p>Дата публикации этой версии: 2018-05-28 20:54 +0300.</p>
       <p>"Math Processing Error" везде означает проблему с кешем. Обновление страницы в обход кеша должно помочь (Shift-F5 в Chrome'е, Control-F5 в Firefox'е).</p>
       <p>Об ошибках, недостатках и возможностях улучшения можно сообщить через <a href="https://github.com/phapl/phapl.github.io/issues">GitHub</a>.</p>
     </div>
@@ -637,6 +679,26 @@ Copyright © 2010 Асташова И. В., Никишкин В. А.<br><i>Ас�
 </div>
 </div>
 
+      <div>
+        <form>
+          <input type="button" id="block_gen_linear-header" onclick="collapse('block_gen_linear')" value="&#9658; Показать задачи: Случайная линейная система по типу особой точки">
+          <div id="block_gen_linear" style="display: none">
+
+            <!-- %% move into code generator -->
+<a href="#" onclick="phapl_gen_linear('1', true); return false">Неустойчивый узел</a><br>
+<a href="#" onclick="phapl_gen_linear('2', true); return false">Устойчивый узел</a><br>
+<a href="#" onclick="phapl_gen_linear('3', true); return false">Седло</a><br>
+<a href="#" onclick="phapl_gen_linear('4', true); return false">Центр</a><br>
+<a href="#" onclick="phapl_gen_linear('5', true); return false">Неустойчивый фокус</a><br>
+<a href="#" onclick="phapl_gen_linear('6', true); return false">Устойчивый фокус</a><br>
+<a href="#" onclick="phapl_gen_linear('7', true); return false">Неустойчивый вырожденный узел</a><br>
+<a href="#" onclick="phapl_gen_linear('7a', true); return false">Неустойчивый дикритический узел</a><br>
+<a href="#" onclick="phapl_gen_linear('8', true); return false">Устойчивый вырожденный узел</a><br>
+<a href="#" onclick="phapl_gen_linear('8a', true); return false">Устойчивый дикритический узел</a><br>
+
+          </div>
+        </form>
+      </div>
     </div>
     <div class="container" id="phapl_div_run">
       <h2>Ввод/изменение задачи и запуск</h2>
@@ -649,6 +711,8 @@ Copyright © 2010 Асташова И. В., Никишкин В. А.<br><i>Ас�
 
     <div id="thediv">
     </div>
-    <br><br><br><br><br><br><br><br>
+    <br><br><br><br><br><br>
+    <a href="#" onclick="scroll_to('phapl_div_choose'); return false">Вернуться к выбору/вводу задачи</a>
+    <br><br><br><br>
   </body>
 </html>

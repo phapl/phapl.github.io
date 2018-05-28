@@ -41,6 +41,10 @@
           })
       }
 
+      function scroll_to(id) {
+          document.getElementById(id).scrollIntoView({ "behaviour" : "smooth" });
+      }
+
       function phapl_populate_cache(b64) {
           var l = atob(b64);
           var t = [];
@@ -108,6 +112,44 @@
           }
       }
 
+      function phapl_gen_linear(equilibria_type, start_p) {
+          scroll_to('phapl_div_run');
+          document.getElementById('thediv').innerHTML = 'PyPy.js is starting. It may take a minute...';
+          phapl_start = new Date().getTime();
+          pypyjs.stdout = pypyjs.stderr = console.log;
+          pypyjs.ready().then(function() {
+              document.getElementById('thediv').innerHTML = 'PyPy.js started successfully. Calculations are happening...';
+              return pypyjs.set('equilibria_type', equilibria_type);
+          }).then(function() {
+              return pypyjs.exec(
+                  'import traceback\n' +
+                  'try:\n' +
+                  '    import tg1\n' +
+                  '    r = tg1.gen_linear(str(equilibria_type))\n' +
+                  'except:\n' +
+                  '    r = [ u"\\x3cpre\\x3e" + traceback.format_exc() + "\\x3c/pre\\x3e" ]\n'
+              );
+          }).then(function () {
+              console.log('gen: python part ok');
+              return pypyjs.get('r');
+          }).then(function (h) {
+              if (h.length == 1) {
+                  document.getElementById('thediv').innerHTML = h[0];
+              } else {
+                  document.getElementById('dot_x').value = h[0];
+                  document.getElementById('dot_y').value = h[1];
+                  if (start_p) {
+                      phapl_do();
+                  } else {
+                      document.getElementById('thediv').innerHTML = langtr_replace(h[2]);
+                      MathJax.Hub.Queue(["Typeset", MathJax.Hub, document.getElementById('thediv')]);
+                  }
+                  console.log(new Date().getTime() - phapl_start);
+              }
+              scroll_to('phapl_div_run');
+          });
+      }
+
       function collapse(id) {
           var e = document.getElementById(id);
           var t = e.style.display;
@@ -137,7 +179,7 @@
           document.getElementById('dot_x').value = dotx;
           document.getElementById('dot_y').value = doty;
           phapl_colored_td = obj;
-          document.getElementById('phapl_div_run').scrollIntoView({ "behaviour" : "smooth" });
+          scroll_to('phapl_div_run');
           phapl_do();
       }
 
@@ -507,9 +549,9 @@ function phapl_setup_canvases(phapl_canvases, phapl_all_points)
     <div class="container">
       <h2>PhaPl</h2>
       <p>PhaPl is a software to research and plot phase portraits of autonomous systems of 2 differential equations on a plane. PhaPl works as a site or as a local html-page that works offline.</p>
-      <p><a href="#" onclick="document.getElementById('phapl_div_choose').scrollIntoView({ 'behaviour' : 'smooth' }); return false">Go to task input/choice below.</a></p>
+      <p><a href="#" onclick="scroll_to('phapl_div_choose'); return false">Go to task input/choice below.</a></p>
       <p><a href="https://github.com/phapl/phapl.github.io/archive/master.zip">Download archive for local offline use</a> (~9 MB to download, ~37 MB to be stored unpacked on disk).</p>
-      <p>This version was published on: 2018-05-27 12:30 +0300.</p>
+      <p>This version was published on: 2018-05-28 20:54 +0300.</p>
       <p>"Math Processing Error" everywhere should be a problem with cache. Refreshing of page bypassing cache should help (press Shift-F5 in Chrome or Control-F5 in Firefox).</p>
       <p>You are welcome to send your suggestions and reports about errors / bugs / problems through <a href="https://github.com/phapl/phapl.github.io/issues">GitHub</a>.</p>
     </div>
@@ -637,6 +679,26 @@ Copyright © 2010 Astashova I.V., Nikishkin V.A.<br><i>Astashova I.V., Nikishkin
 </div>
 </div>
 
+      <div>
+        <form>
+          <input type="button" id="block_gen_linear-header" onclick="collapse('block_gen_linear')" value="&#9658; Show tasks: Random linear system by type of equilibria">
+          <div id="block_gen_linear" style="display: none">
+
+            <!-- %% move into code generator -->
+<a href="#" onclick="phapl_gen_linear('1', true); return false">Nodal source</a><br>
+<a href="#" onclick="phapl_gen_linear('2', true); return false">Nodal sink</a><br>
+<a href="#" onclick="phapl_gen_linear('3', true); return false">Saddle</a><br>
+<a href="#" onclick="phapl_gen_linear('4', true); return false">Center</a><br>
+<a href="#" onclick="phapl_gen_linear('5', true); return false">Spiral source</a><br>
+<a href="#" onclick="phapl_gen_linear('6', true); return false">Spiral sink</a><br>
+<a href="#" onclick="phapl_gen_linear('7', true); return false">Degenerate nodal source</a><br>
+<a href="#" onclick="phapl_gen_linear('7a', true); return false">Dicritical nodal source</a><br>
+<a href="#" onclick="phapl_gen_linear('8', true); return false">Degenerate nodal sink</a><br>
+<a href="#" onclick="phapl_gen_linear('8a', true); return false">Dicritical nodal sink</a><br>
+
+          </div>
+        </form>
+      </div>
     </div>
     <div class="container" id="phapl_div_run">
       <h2>Input/modify task and start</h2>
@@ -649,6 +711,8 @@ Copyright © 2010 Astashova I.V., Nikishkin V.A.<br><i>Astashova I.V., Nikishkin
 
     <div id="thediv">
     </div>
-    <br><br><br><br><br><br><br><br>
+    <br><br><br><br><br><br>
+    <a href="#" onclick="scroll_to('phapl_div_choose'); return false">Get back to input/choice of task</a>
+    <br><br><br><br>
   </body>
 </html>
