@@ -280,6 +280,8 @@ function phapl_setup_canvases(phapl_canvases, phapl_all_points)
             all_points = phapl_all_points;
         }
 
+        var line_width = 1.0 * dif_x / height;
+
         canvas_properties[cid] = {
             // function to draw half line
             'hl_fun' : hl_fun,
@@ -294,10 +296,9 @@ function phapl_setup_canvases(phapl_canvases, phapl_all_points)
             'max_y' : max_y,
             'dif_x' : dif_x,
             'dif_y' : dif_y,
-            'height_dif_x' : height_dif_x
+            'height_dif_x' : height_dif_x,
+            'line_width' : line_width
         };
-
-        var line_width = 1.0 * dif_x / height;
 
         // console.log(j, min_x, mid_x, max_x);
         // console.log(j, min_y, mid_y, max_y);
@@ -506,7 +507,7 @@ function phapl_setup_canvases(phapl_canvases, phapl_all_points)
                      c.height * 1.5, c.height,
                      d.min_x, d.mid_x, d.max_x,
                      d.min_y, d.mid_y, d.max_y,
-                     d.height_dif_x, line_width * 4
+                     d.height_dif_x, d.line_width * 4
                     );
             d.hl_fun(d.ctx, -1.0, mx, my, false,
                      blue_color, fg_color, fg2_color,
@@ -514,7 +515,7 @@ function phapl_setup_canvases(phapl_canvases, phapl_all_points)
                      c.height * 1.5, c.height,
                      d.min_x, d.mid_x, d.max_x,
                      d.min_y, d.mid_y, d.max_y,
-                     d.height_dif_x, line_width * 4
+                     d.height_dif_x, d.line_width * 4
                     );
             var nn = d.twin_cid;
             if (nn != false) {
@@ -530,7 +531,7 @@ function phapl_setup_canvases(phapl_canvases, phapl_all_points)
                           d2.elem.height * 1.5, d2.elem.height,
                           d2.min_x, d2.mid_x, d2.max_x,
                           d2.min_y, d2.mid_y, d2.max_y,
-                          d2.height_dif_x, line_width * 4
+                          d2.height_dif_x, d2.line_width * 4
                          );
                 d2.hl_fun(d2.ctx, -1.0, mx, my, false,
                           blue_color, fg_color, fg2_color,
@@ -538,7 +539,7 @@ function phapl_setup_canvases(phapl_canvases, phapl_all_points)
                           d2.elem.height * 1.5, d2.elem.height,
                           d2.min_x, d2.mid_x, d2.max_x,
                           d2.min_y, d2.mid_y, d2.max_y,
-                          d2.height_dif_x, line_width * 4
+                          d2.height_dif_x, d2.line_width * 4
                          );
             }
         });
@@ -563,7 +564,7 @@ function phapl_setup_canvases(phapl_canvases, phapl_all_points)
       <p>PhaPl is a software to research and plot phase portraits of autonomous systems of 2 differential equations on a plane. PhaPl works as a site or as a local html-page that works offline.</p>
       <p><a href="#" onclick="scroll_to('phapl_div_choose'); return false">Go to task input/choice below.</a></p>
       <p><a href="https://github.com/phapl/phapl.github.io/archive/master.zip">Download archive for local offline use</a> (~9 MB to download, ~37 MB to be stored unpacked on disk).</p>
-      <p>This version was published on: 2018-06-06 01:03 +0300.</p>
+      <p>This version was published on: 2018-06-06 01:19 +0300.</p>
       <p>"Math Processing Error" everywhere should be a problem with cache. Refreshing of page bypassing cache should help (press Shift-F5 in Chrome or Control-F5 in Firefox).</p>
       <p>You are welcome to send your suggestions and reports about errors / bugs / problems through <a href="https://github.com/phapl/phapl.github.io/issues">GitHub</a>.</p>
     </div>
